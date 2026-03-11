@@ -1,3 +1,4 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { User, UserRole } from '../types';
 import { supabase } from '../lib/supabase/client';
@@ -79,25 +80,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('Login error:', error);
-        return false;
-      }
-
-      if (data.user) {
-        const profile = await fetchUserProfile(data.user);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.user) return false;
+  
+      const profile = await fetchUserProfile(data.user);
+      if (profile) {
         setUser(profile);
         return true;
       }
-
       return false;
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch {
       return false;
     }
   }, []);

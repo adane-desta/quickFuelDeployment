@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -67,6 +68,7 @@ export function RegisterDriver() {
       const success = await register({
         fullName: formData.fullName,
         email: formData.email,
+        password: formData.password,
         phone: formData.phone,
         address: formData.address,
         role: 'driver',

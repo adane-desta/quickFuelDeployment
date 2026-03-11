@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,7 +7,7 @@ import { Fuel, Eye, EyeOff, User, Building2, ShieldCheck, ArrowRight, Loader2 } 
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login , user} = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +33,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password, selectedRole);
+      const success = await login(email, password);
       if (success) {
         switch (selectedRole) {
           case 'driver': navigate('/driver'); break;
@@ -57,9 +58,9 @@ export function LoginPage() {
     setError('');
 
     try {
-      const success = await login(creds.email, creds.password, selectedRole);
-      if (success) {
-        switch (selectedRole) {
+      const success = await login(creds.email, creds.password);
+      if (success && user) {
+        switch (user.role) {
           case 'driver': navigate('/driver'); break;
           case 'operator': navigate('/operator'); break;
           case 'admin': navigate('/admin'); break;
