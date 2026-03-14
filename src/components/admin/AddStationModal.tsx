@@ -11,6 +11,9 @@ import { supabase } from '../../lib/supabase/client';
 import { db } from '../../lib/supabase/services';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
 
+
+const { user } = useAuth();
+
 interface AddStationModalProps {
   isOpen: boolean;
   onClose: () => void;
