@@ -25,7 +25,7 @@ serve(async (req) => {
           )
         }
 
-        
+
     // Create a Supabase client with the service role key
     const supabase = createClient(
       Deno.env.get('VITE_SUPABASE_URL') ?? '',
@@ -45,7 +45,7 @@ serve(async (req) => {
 
     if (authError) throw authError
 
-    // 2. Create station (you may want to do this in a transaction, but for simplicity we do it here)
+    // 2. Create station 
     const { data: station, error: stationError } = await supabase
       .from('stations')
       .insert({
@@ -86,7 +86,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ user: authData.user, station }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     return new Response(
