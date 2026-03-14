@@ -9,13 +9,23 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  
+
     // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
       return new Response('ok', { headers: corsHeaders })
     }
 
   try {
+
+        // Only accept POST requests
+        if (req.method !== 'POST') {
+          return new Response(
+            JSON.stringify({ error: 'Method not allowed' }),
+            { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        
     // Create a Supabase client with the service role key
     const supabase = createClient(
       Deno.env.get('VITE_SUPABASE_URL') ?? '',
