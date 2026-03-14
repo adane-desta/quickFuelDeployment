@@ -12,8 +12,6 @@ import { db } from '../../lib/supabase/services';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
 
 
-const { user } = useAuth();
-
 interface AddStationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,6 +19,8 @@ interface AddStationModalProps {
 }
 
 export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalProps) {
+  
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
