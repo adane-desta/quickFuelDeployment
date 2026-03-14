@@ -263,43 +263,70 @@ export class ReservationService {
 // =====================================================
 
 export class FuelPriceService {
-  static async getAll(): Promise<FuelPrice[]> {
-    const { data, error } = await supabase
-      .from('fuel_prices')
-      .select('*')
-      .order('updated_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+
+  private static mapDbToFuelPrice(dbPrice: any): FuelPrice {
+    return {
+      id: dbPrice.id,
+      fuelType: dbPrice.fuel_type,
+      pricePerLiter: dbPrice.price_per_liter,
+      effectiveFrom: dbPrice.effective_from,
+      updatedBy: dbPrice.updated_by,
+      updatedAt: dbPrice.updated_at,
+    };
   }
 
-  static async getCurrent(): Promise<FuelPrice[]> {
-    const { data, error } = await supabase
-      .from('fuel_prices')
-      .select('*')
-      .lte('effective_from', new Date().toISOString());
-    if (error) throw error;
-    return data || [];
-  }
+static async getAll(): Promise<FuelPrice[]> {
+  const { data, error } = await supabase
+    .from('fuel_prices')
+    .select('*')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(item => this.mapDbToFuelPrice(item));
+}
+
+static async getCurrent(): Promise<FuelPrice[]> {
+  const { data, error } = await supabase
+    .from('fuel_prices')
+    .select('*')
+    .lte('effective_from', new Date().toISOString());
+  if (error) throw error;
+  return (data || []).map(item => this.mapDbToFuelPrice(item));
+}
 
   static async update(id: string, updates: Partial<FuelPrice>): Promise<FuelPrice | null> {
+    // Convert camelCase to snake_case for the database
+    const dbUpdates: any = {};
+    if (updates.fuelType !== undefined) dbUpdates.fuel_type = updates.fuelType;
+    if (updates.pricePerLiter !== undefined) dbUpdates.price_per_liter = updates.pricePerLiter;
+    if (updates.effectiveFrom !== undefined) dbUpdates.effective_from = updates.effectiveFrom;
+    if (updates.updatedBy !== undefined) dbUpdates.updated_by = updates.updatedBy;
+    if (updates.updatedAt !== undefined) dbUpdates.updated_at = updates.updatedAt;
+  
     const { data, error } = await supabase
       .from('fuel_prices')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
       .select()
       .single();
     if (error) throw error;
-    return data;
+    return data ? this.mapDbToFuelPrice(data) : null;
   }
 
   static async create(price: Omit<FuelPrice, 'id'>): Promise<FuelPrice> {
+    const dbPrice = {
+      fuel_type: price.fuelType,
+      price_per_liter: price.pricePerLiter,
+      effective_from: price.effectiveFrom,
+      updated_by: price.updatedBy,
+      updated_at: price.updatedAt,
+    };
     const { data, error } = await supabase
       .from('fuel_prices')
-      .insert(price)
+      .insert(dbPrice)
       .select()
       .single();
     if (error) throw error;
-    return data;
+    return this.mapDbToFuelPrice(data);
   }
 }
 

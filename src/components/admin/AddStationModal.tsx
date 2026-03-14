@@ -1,10 +1,11 @@
+import React from 'react';
 import { useState } from 'react';
 import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase/client';
 import { db } from '../../lib/supabase/services';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
@@ -125,84 +126,65 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+  
     if (!validateStep2()) {
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
       // Generate random password for operator
       const tempPassword = generateRandomPassword();
-
-      // Create auth user for operator
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+  
+      // Get the current user's session token for authorization
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error('You must be logged in to perform this action');
+      }
+      const accessToken = sessionData.session.access_token;
+  
+      // Prepare the payload for the edge function
+      const payload = {
         email: formData.operatorEmail,
         password: tempPassword,
-        email_confirm: true,
-      });
-
-      if (authError) {
-        throw new Error(`Failed to create operator account: ${authError.message}`);
-      }
-
-      if (!authData.user) {
-        throw new Error('Failed to create operator account');
-      }
-
-      // Create station
-      const { data: stationData, error: stationError } = await supabase
-        .from('stations')
-        .insert({
+        operatorData: {
+          fullName: formData.operatorName,
+          phone: formatEthiopianPhone(formData.operatorPhone),
+          businessLicense: formData.businessLicense,
+        },
+        stationData: {
           name: formData.stationName,
           address: formData.address,
           phone: formatEthiopianPhone(formData.phone),
           operating_hours: formData.operatingHours,
           latitude: parseFloat(formData.latitude),
           longitude: parseFloat(formData.longitude),
-          operator_id: authData.user.id,
           petrol_stock: parseFloat(formData.petrolStock) || 0,
           diesel_stock: parseFloat(formData.dieselStock) || 0,
           petrol_available: (parseFloat(formData.petrolStock) || 0) > 0,
           diesel_available: (parseFloat(formData.dieselStock) || 0) > 0,
-          is_verified: false,
-        })
-        .select()
-        .single();
-
-      if (stationError) {
-        // Clean up auth user if station creation fails
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw new Error(`Failed to create station: ${stationError.message}`);
-      }
-
-      // Create operator profile
-      const { error: profileError } = await supabase.from('users').insert({
-        id: authData.user.id,
-        email: formData.operatorEmail,
-        full_name: formData.operatorName,
-        phone: formatEthiopianPhone(formData.operatorPhone),
-        role: 'operator',
-        is_active: true,
-        station_id: stationData.id,
-        station_name: formData.stationName,
-        business_license: formData.businessLicense,
+        },
+      };
+  
+      // Call the edge function
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-operator`;
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
       });
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        
-        // Clean up station if profile creation fails
-        await supabase.from('stations').delete().eq('id', stationData.id);
-        
-        // Note: Can't delete auth user with anon key
-        // Admin will need to clean up manually in Supabase dashboard if needed
-        
-        throw new Error(`Failed to create operator profile: ${profileError.message}`);
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create operator account');
       }
-
-      // Log system activity
+  
+      // Log system activity (optional – you can also do this inside the edge function)
       await db.systemActivity.create({
         type: 'station_verified',
         description: 'New station registered',
@@ -210,20 +192,20 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         timestamp: new Date().toISOString(),
         details: `${formData.stationName} registered by admin`,
       });
-
-      // TODO: Send email with credentials to operator
-      // For now, show credentials in toast
+  
+      // Show success toast with temporary credentials
       toast.success('Station registered successfully!', {
         description: `Email: ${formData.operatorEmail}\nTemporary Password: ${tempPassword}\n\nOperator credentials have been sent via email.`,
         duration: 10000,
       });
-
+  
+      // For debugging – remove in production
       console.log('Operator Credentials:', {
         email: formData.operatorEmail,
         password: tempPassword,
-        stationId: stationData.id,
+        stationId: result.station?.id,
       });
-
+  
       onSuccess();
       onClose();
       resetForm();
