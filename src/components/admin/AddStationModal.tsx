@@ -1,5 +1,6 @@
 import React from 'react';
 import { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
