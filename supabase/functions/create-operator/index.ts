@@ -43,46 +43,57 @@ serve(async (req) => {
       email_confirm: true,
     })
 
-    if (authError) throw authError
+    if (authError) throw new Error(`Auth creation failed: ${authError.message}`)
+    if (!authData.user) throw new Error('Auth user not created')
+    const userId = authData.user.id
 
-    // 2. Create station 
-    const { data: station, error: stationError } = await supabase
-      .from('stations')
-      .insert({
-        ...stationData,
-        operator_id: authData.user.id,
-        is_verified: false,
-      })
-      .select()
-      .single()
-
-    if (stationError) {
-      // Rollback: delete the auth user if station creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id)
-      throw stationError
-    }
-
-    // 3. Create operator profile
+    // 2. Create operator profile in `users` table 
     const { error: profileError } = await supabase
       .from('users')
       .insert({
-        id: authData.user.id,
-        email,
+        id: userId,
+        email: email,
         full_name: operatorData.fullName,
         phone: operatorData.phone,
         role: 'operator',
         is_active: true,
-        station_id: station.id,
-        station_name: stationData.name,
         business_license: operatorData.businessLicense,
       })
-
     if (profileError) {
-      // Rollback: delete station and auth user
-      await supabase.from('stations').delete().eq('id', station.id)
-      await supabase.auth.admin.deleteUser(authData.user.id)
-      throw profileError
+      // Rollback: delete auth user
+      await supabase.auth.admin.deleteUser(userId)
+      throw new Error(`Profile creation failed: ${profileError.message}`)
     }
+
+     // 3.create the station, referencing the existing profile ID
+     const { data: station, error: stationError } = await supabase
+        .from('stations')
+        .insert({
+          ...stationData,
+          operator_id: userId, 
+          is_verified: false,
+        })
+        .select()
+        .single()
+      if (stationError) {
+        // Rollback: delete profile and auth user
+        await supabase.from('users').delete().eq('id', userId)
+        await supabase.auth.admin.deleteUser(userId)
+        throw new Error(`Station creation failed: ${stationError.message}`)
+      }
+
+      // 4. Update the operator profile with the station_id and station_name
+      const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        station_id: station.id,
+        station_name: stationData.name,
+      })
+      .eq('id', userId)
+    if (updateError) {
+      // Non-critical – log but don't fail whole transaction
+      console.error('Failed to update profile with station details:', updateError)
+    } 
 
     return new Response(
       JSON.stringify({ user: authData.user, station }),
