@@ -188,14 +188,26 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         throw new Error(result.error || 'Failed to create operator account');
       }
   
-      // Log system activity (optional – you can also do this inside the edge function)
-      await db.systemActivity.create({
-        type: 'station_verified',
-        description: 'New station registered',
-        actor: 'Admin',
-        timestamp: new Date().toISOString(),
-        details: `${formData.stationName} registered by admin`,
-      });
+    // Log system activity
+    if (user) {
+      try {
+        await supabase.from('system_activity').insert({
+          type: 'station_verified',
+          description: 'New station registered',
+          actor_id: user.id,
+          actor_name: user.fullName || 'Admin',
+          details: {
+            stationName: formData.stationName,
+            stationId: result.station?.id,
+            operatorEmail: formData.operatorEmail,
+          },
+          created_at: new Date().toISOString(),
+        });
+      } catch (activityError) {
+        // Non-critical – log but don't block user
+        console.error('Failed to log system activity:', activityError);
+      }
+    }
   
       // Show success toast with temporary credentials
       toast.success('Station registered successfully!', {
