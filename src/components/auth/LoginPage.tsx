@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { Fuel, Mail, Lock, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { validateEmail } from '../../lib/supabase/config';
 
 export function LoginPage() {
@@ -61,7 +62,10 @@ export function LoginPage() {
       // If successful, the useEffect above will handle navigation
       if (!success) {
         setLoading(false);
+        return;
       }
+
+      setLoading(false);
     } catch (error: any) {
       console.error('Login error:', error);
       setLoading(false);

@@ -9,7 +9,7 @@ export interface SupabaseConfig {
 // Load from environment variables
 export const supabaseConfig: SupabaseConfig = {
   url: import.meta.env.VITE_SUPABASE_URL || 'https://djfzgxnquxzbnxfjvkcp.supabase.co',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZnpneG5xdXh6Ym54Zmp2a2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE2NjQ0MzIsImV4cCI6MjA1NzI0MDQzMn0.CnK4ZFJDEvpOgwKVV42qHQ_dGWzyb92',
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZnpneG5xdXh6Ym54Zmp2a2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjA0OTEsImV4cCI6MjA4ODYzNjQ5MX0.x1ydkI2s7gGHgF6kNjH57pgL_pp7pcHKYMOctREXd1Y',
 };
 
 // Validation helpers
