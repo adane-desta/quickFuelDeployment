@@ -18,12 +18,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { toast } from 'sonner';
 
 export function SystemAnalytics() {
-  const [selectedFuelType, setSelectedFuelType] = useState<'All' | 'Petrol' | 'Diesel'>('All');
+  const [selectedFuelType, setSelectedFuelType] = useState<'All' | string>('All');
   const [selectedStation, setSelectedStation] = useState<string>('All');
-  const [fuelAnalytics, setFuelAnalytics] = useState<FuelAnalytics[]>([]);
+  const [fuelAnalytics, setFuelAnalytics] = useState<any[]>([]); // using any temporarily; replace with proper type
   const [fuelPrices, setFuelPrices] = useState<FuelPrice[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Extract unique fuel types from the analytics data
+  const fuelTypes = Array.from(new Set(fuelAnalytics.map(a => a.fuelType)));
 
   useEffect(() => {
     loadData();
@@ -55,7 +58,7 @@ export function SystemAnalytics() {
     return fuelMatch && stationMatch;
   });
 
-  // Calculate totals by fuel type
+  // Calculate totals by fuel type (aggregate across all stations)
   const totalsByFuelType = fuelAnalytics.reduce((acc, item) => {
     if (!acc[item.fuelType]) {
       acc[item.fuelType] = { available: 0, dispensed: 0, digitalDispensed: 0 };
@@ -105,15 +108,19 @@ export function SystemAnalytics() {
     });
   };
 
-  const getCurrentPrice = (fuelType: 'Petrol' | 'Diesel') => {
-    return fuelPrices.find((p) => p.fuelType === fuelType)?.pricePerLiter || 0;
+  // Helper: get current price for a fuel type name
+  const getCurrentPrice = (fuelTypeName: string): number => {
+    const priceEntry = fuelPrices.find(p => p.name === fuelTypeName);
+    return priceEntry?.base_price_per_liter || 0;
   };
 
-  const calculateRevenue = (fuelType: string, liters: number) => {
-    const price = getCurrentPrice(fuelType as 'Petrol' | 'Diesel');
+  // Calculate revenue for a given fuel type and liters
+  const calculateRevenue = (fuelTypeName: string, liters: number) => {
+    const price = getCurrentPrice(fuelTypeName);
     return price * liters;
   };
 
+  // Total revenue from digital reservations
   const totalRevenue = Object.entries(totalsByFuelType).reduce((sum, [fuelType, data]) => {
     return sum + calculateRevenue(fuelType, data.digitalDispensed);
   }, 0);
@@ -145,14 +152,15 @@ export function SystemAnalytics() {
           <div className="mb-6 flex flex-col sm:flex-row gap-3">
             <div className="flex items-center gap-2 flex-1">
               <Filter className="w-4 h-4 text-gray-500" />
-              <Select value={selectedFuelType} onValueChange={(value: any) => setSelectedFuelType(value)}>
+              <Select value={selectedFuelType} onValueChange={setSelectedFuelType}>
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select fuel type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Fuel Types</SelectItem>
-                  <SelectItem value="Petrol">Petrol Only</SelectItem>
-                  <SelectItem value="Diesel">Diesel Only</SelectItem>
+                  {fuelTypes.map(fuel => (
+                    <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -360,7 +368,7 @@ export function SystemAnalytics() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {Object.entries(totalsByFuelType).map(([fuelType, data]) => {
-                  const price = getCurrentPrice(fuelType as 'Petrol' | 'Diesel');
+                  const price = getCurrentPrice(fuelType);
                   const revenue = calculateRevenue(fuelType, data.digitalDispensed);
                   return (
                     <div key={fuelType} className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
@@ -390,7 +398,7 @@ export function SystemAnalytics() {
           </div>
 
           {/* Station-wise Breakdown */}
-          {selectedFuelType !== 'All' && selectedStation === 'All' && (
+          {selectedFuelType !== 'All' && selectedStation === 'All' && stationWiseData.length > 0 && (
             <Card className="p-6">
               <div className="mb-4">
                 <h3 className="text-gray-900 mb-1">Station-wise {selectedFuelType} Analysis</h3>
@@ -434,7 +442,7 @@ export function SystemAnalytics() {
                     <th className="text-right py-3 px-4 text-sm text-gray-600">Digital Dispensed (L)</th>
                     <th className="text-right py-3 px-4 text-sm text-gray-600">Digital %</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-600">Last Updated</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody>
                   {filteredAnalytics.map((item, index) => {
@@ -446,7 +454,9 @@ export function SystemAnalytics() {
                         <td className="py-3 px-4 text-sm text-gray-900">{item.stationName}</td>
                         <td className="py-3 px-4">
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                            item.fuelType === 'Petrol' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                            item.fuelType === 'Petrol' ? 'bg-blue-100 text-blue-700' : 
+                            item.fuelType === 'Diesel' ? 'bg-green-100 text-green-700' : 
+                            'bg-gray-100 text-gray-700'
                           }`}>
                             {item.fuelType}
                           </span>
@@ -456,7 +466,7 @@ export function SystemAnalytics() {
                         <td className="py-3 px-4 text-sm text-right text-blue-600">{item.digitalDispensed.toLocaleString()}</td>
                         <td className="py-3 px-4 text-sm text-right text-gray-900">{digitalPercentage}%</td>
                         <td className="py-3 px-4 text-sm text-gray-500">{new Date(item.lastUpdated).toLocaleString()}</td>
-                      </tr>
+                       </tr>
                     );
                   })}
                 </tbody>
