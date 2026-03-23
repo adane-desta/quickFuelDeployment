@@ -308,45 +308,141 @@ export class FuelPriceService {
 // =====================================================
 
 export class FuelAnalyticsService {
+  /**
+   * Retrieve all fuel analytics records, enriched with station name and fuel type name.
+   * @returns Promise<FuelAnalytics[]> – each record includes stationName and fuelType as strings.
+   */
   static async getAll(): Promise<FuelAnalytics[]> {
     const { data, error } = await supabase
       .from('fuel_analytics')
-      .select('*')
+      .select(`
+        id,
+        station_id,
+        fuel_type_id,
+        total_available,
+        total_dispensed,
+        digital_dispensed,
+        last_updated,
+        station:stations!station_id (name),
+        fuel_type:fuel_types!fuel_type_id (name)
+      `)
       .order('last_updated', { ascending: false });
+
     if (error) throw error;
-    return data || [];
+
+    // Transform to match the FuelAnalytics interface expected by components
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      stationId: item.station_id,
+      stationName: item.station?.name || 'Unknown Station',
+      fuelType: item.fuel_type?.name || 'Unknown Fuel',
+      totalAvailable: item.total_available,
+      totalDispensed: item.total_dispensed,
+      digitalDispensed: item.digital_dispensed,
+      lastUpdated: item.last_updated,
+    }));
   }
 
+  /**
+   * Retrieve analytics for a specific station, enriched with station name and fuel type name.
+   * @param stationId – UUID of the station
+   * @returns Promise<FuelAnalytics[]>
+   */
   static async getByStation(stationId: string): Promise<FuelAnalytics[]> {
     const { data, error } = await supabase
       .from('fuel_analytics')
-      .select('*')
-      .eq('station_id', stationId);
+      .select(`
+        id,
+        station_id,
+        fuel_type_id,
+        total_available,
+        total_dispensed,
+        digital_dispensed,
+        last_updated,
+        station:stations!station_id (name),
+        fuel_type:fuel_types!fuel_type_id (name)
+      `)
+      .eq('station_id', stationId)
+      .order('last_updated', { ascending: false });
+
     if (error) throw error;
-    return data || [];
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      stationId: item.station_id,
+      stationName: item.station?.name || 'Unknown Station',
+      fuelType: item.fuel_type?.name || 'Unknown Fuel',
+      totalAvailable: item.total_available,
+      totalDispensed: item.total_dispensed,
+      digitalDispensed: item.digital_dispensed,
+      lastUpdated: item.last_updated,
+    }));
   }
 
+  /**
+   * Update (upsert) analytics for a station and fuel type.
+   * In version 2, the unique constraint is (station_id, fuel_type_id, analytics_date).
+   * This method defaults analytics_date to today if not provided.
+   *
+   * @param stationId – UUID of the station
+   * @param fuelTypeId – UUID of the fuel type (from fuel_types table)
+   * @param updates – partial FuelAnalytics fields (e.g., total_dispensed, digital_dispensed)
+   * @param analyticsDate – optional date; defaults to today
+   * @returns Promise<FuelAnalytics | null>
+   */
   static async updateAnalytics(
     stationId: string,
-    fuelType: 'Petrol' | 'Diesel',
-    updates: Partial<FuelAnalytics>
+    fuelTypeId: string,
+    updates: Partial<{
+      total_available: number;
+      total_dispensed: number;
+      digital_dispensed: number;
+    }>,
+    analyticsDate: string = new Date().toISOString().split('T')[0]
   ): Promise<FuelAnalytics | null> {
-    // Use upsert to create or update
     const { data, error } = await supabase
       .from('fuel_analytics')
       .upsert(
         {
           station_id: stationId,
-          fuel_type: fuelType,
+          fuel_type_id: fuelTypeId,
+          analytics_date: analyticsDate,
           ...updates,
           last_updated: new Date().toISOString(),
         },
-        { onConflict: 'station_id,fuel_type' }
+        {
+          onConflict: 'station_id,fuel_type_id,analytics_date',
+          ignoreDuplicates: false,
+        }
       )
-      .select()
+      .select(`
+        id,
+        station_id,
+        fuel_type_id,
+        total_available,
+        total_dispensed,
+        digital_dispensed,
+        last_updated,
+        station:stations!station_id (name),
+        fuel_type:fuel_types!fuel_type_id (name)
+      `)
       .single();
+
     if (error) throw error;
-    return data;
+
+    // Transform to match component expectations
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      stationId: data.station_id,
+      stationName: data.station?.name || 'Unknown Station',
+      fuelType: data.fuel_type?.name || 'Unknown Fuel',
+      totalAvailable: data.total_available,
+      totalDispensed: data.total_dispensed,
+      digitalDispensed: data.digital_dispensed,
+      lastUpdated: data.last_updated,
+    };
   }
 }
 
