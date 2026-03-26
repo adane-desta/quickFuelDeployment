@@ -218,6 +218,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         password: tempPassword,
         stationId: stationData.id,
       });
+      
 
       onSuccess();
       onClose();
