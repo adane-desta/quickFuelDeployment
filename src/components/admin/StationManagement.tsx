@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { db } from '../../lib/supabase/services';
 import { Station } from '../../types';
 import {
-  Building2, Search, MapPin, Clock, Fuel, Users, CheckCircle, XCircle, Shield, Eye,
-  Loader2, X, Phone, AlertTriangle, Plus
+  Building2, Search, MapPin, Clock, Users, CheckCircle, XCircle, Shield, Eye,
+  Loader2, X, Phone, AlertTriangle, Plus, Calendar, User
 } from 'lucide-react';
 import { AddStationModal } from './AddStationModal';
 import { Button } from '../ui/button';
@@ -38,28 +38,41 @@ export function StationManagement() {
   const filtered = stations.filter(s => {
     const matchesSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) ||
       (s.address || '').toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === 'all' || (filter === 'verified' ? s.verified : !s.verified);
+    const matchesFilter = filter === 'all' || (filter === 'verified' ? s.is_verified : !s.is_verified);
     return matchesSearch && matchesFilter;
   });
 
   const handleVerify = async (id: string) => {
     setVerifying(id);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setStations(prev => prev.map(s => s.id === id ? { ...s, verified: true } : s));
-    setVerifying(null);
+    try {
+      await db.stations.verify(id, 'admin'); // assuming db.stations.verify exists
+      setStations(prev => prev.map(s => s.id === id ? { ...s, is_verified: true } : s));
+      toast.success('Station verified successfully');
+    } catch (error) {
+      toast.error('Verification failed');
+    } finally {
+      setVerifying(null);
+    }
   };
 
-  const handleReject = async (id: string) => {
+  const handleRevoke = async (id: string) => {
     setVerifying(id);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setStations(prev => prev.map(s => s.id === id ? { ...s, verified: false } : s));
-    setVerifying(null);
+    try {
+      await db.stations.update(id, { is_verified: false });
+      setStations(prev => prev.map(s => s.id === id ? { ...s, is_verified: false } : s));
+      toast.success('Verification revoked');
+    } catch (error) {
+      toast.error('Revocation failed');
+    } finally {
+      setVerifying(null);
+    }
   };
 
-  const queueColors = {
-    Short: 'bg-green-100 text-green-700',
-    Medium: 'bg-yellow-100 text-yellow-700',
-    Long: 'bg-red-100 text-red-700',
+  // Helper to format operating days
+  const formatDays = (days: string[] | null) => {
+    if (!days) return 'Not set';
+    if (days.length === 7) return 'Every day';
+    return days.map(d => d.slice(0, 3)).join(', ');
   };
 
   return (
@@ -76,11 +89,11 @@ export function StationManagement() {
           <p className="text-sm text-gray-500">Total Stations</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-          <p className="text-2xl text-green-600">{stations.filter(s => s.verified).length}</p>
+          <p className="text-2xl text-green-600">{stations.filter(s => s.is_verified).length}</p>
           <p className="text-sm text-gray-500">Verified</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-          <p className="text-2xl text-yellow-600">{stations.filter(s => !s.verified).length}</p>
+          <p className="text-2xl text-yellow-600">{stations.filter(s => !s.is_verified).length}</p>
           <p className="text-sm text-gray-500">Pending</p>
         </div>
       </div>
@@ -89,16 +102,23 @@ export function StationManagement() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             placeholder="Search stations..."
-            className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none" />
+            className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+          />
         </div>
         <div className="flex gap-2">
           {(['all', 'verified', 'pending'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                 filter === f ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}>
+              }`}
+            >
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
@@ -116,16 +136,16 @@ export function StationManagement() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map(station => (
           <div key={station.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className={`px-4 py-2 border-b ${station.verified ? 'bg-green-50 border-green-100' : 'bg-yellow-50 border-yellow-100'}`}>
+            <div className={`px-4 py-2 border-b ${station.is_verified ? 'bg-green-50 border-green-100' : 'bg-yellow-50 border-yellow-100'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Building2 className={`w-4 h-4 ${station.verified ? 'text-green-600' : 'text-yellow-600'}`} />
+                  <Building2 className={`w-4 h-4 ${station.is_verified ? 'text-green-600' : 'text-yellow-600'}`} />
                   <h3 className="text-gray-900 text-sm">{station.name}</h3>
                 </div>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                  station.verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  station.is_verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                 }`}>
-                  {station.verified ? <><CheckCircle className="w-3 h-3" /> Verified</> : <><AlertTriangle className="w-3 h-3" /> Pending</>}
+                  {station.is_verified ? <><CheckCircle className="w-3 h-3" /> Verified</> : <><AlertTriangle className="w-3 h-3" /> Pending</>}
                 </span>
               </div>
             </div>
@@ -136,34 +156,41 @@ export function StationManagement() {
                   <span className="text-gray-600 truncate">{station.address || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 truncate">{station.owner_name || 'No owner'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
                   <Clock className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600">{station.operatingHours || 'N/A'}</span>
+                  <span className="text-gray-600">
+                    {station.is_24_hours ? '24 hours' : `${station.opening_time} – ${station.closing_time}`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <Fuel className="w-4 h-4 text-gray-400" />
-                  <div className="flex gap-1">
-                    {station.petrolAvailable && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Petrol</span>}
-                    {station.dieselAvailable && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Diesel</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="w-4 h-4 text-gray-400" />
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${queueColors[station.queueLength]}`}>{station.queueLength}</span>
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 text-xs">{formatDays(station.operating_days)}</span>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setSelectedStation(station)}
-                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                <button
+                  onClick={() => setSelectedStation(station)}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+                >
                   <Eye className="w-4 h-4" /> Details
                 </button>
-                {!station.verified ? (
-                  <button onClick={() => handleVerify(station.id)} disabled={verifying === station.id}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                {!station.is_verified ? (
+                  <button
+                    onClick={() => handleVerify(station.id)}
+                    disabled={verifying === station.id}
+                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1"
+                  >
                     {verifying === station.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Shield className="w-4 h-4" /> Verify</>}
                   </button>
                 ) : (
-                  <button onClick={() => handleReject(station.id)} disabled={verifying === station.id}
-                    className="flex-1 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => handleRevoke(station.id)}
+                    disabled={verifying === station.id}
+                    className="flex-1 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-1"
+                  >
                     {verifying === station.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><XCircle className="w-4 h-4" /> Revoke</>}
                   </button>
                 )}
@@ -192,16 +219,19 @@ export function StationManagement() {
                   </div>
                   <h4 className="text-gray-900">{selectedStation.name}</h4>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs mt-1 ${
-                    selectedStation.verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                    selectedStation.is_verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {selectedStation.verified ? 'Verified' : 'Pending Verification'}
+                    {selectedStation.is_verified ? 'Verified' : 'Pending Verification'}
                   </span>
                 </div>
 
                 {[
+                  { icon: User, label: 'Owner', value: selectedStation.owner_name },
                   { icon: MapPin, label: 'Address', value: selectedStation.address },
                   { icon: Phone, label: 'Phone', value: selectedStation.phone },
-                  { icon: Clock, label: 'Hours', value: selectedStation.operatingHours },
+                  { icon: Clock, label: 'Hours', value: selectedStation.is_24_hours ? '24/7' : `${selectedStation.opening_time} – ${selectedStation.closing_time}` },
+                  { icon: Calendar, label: 'Operating Days', value: formatDays(selectedStation.operating_days) },
+                  { icon: FileText, label: 'Business License', value: selectedStation.business_license_number },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <item.icon className="w-5 h-5 text-gray-400" />
@@ -212,31 +242,37 @@ export function StationManagement() {
                   </div>
                 ))}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-gray-500">Petrol Stock</p>
-                    <p className="text-gray-900">{(selectedStation.petrolStock || 0).toLocaleString()} L</p>
-                    <span className={`text-xs ${selectedStation.petrolAvailable ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedStation.petrolAvailable ? 'Available' : 'Unavailable'}
-                    </span>
+                {/* Optional: show other license numbers if present */}
+                {selectedStation.operating_license_number && (
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Operating License</p>
+                      <p className="text-gray-900 text-sm">{selectedStation.operating_license_number}</p>
+                    </div>
                   </div>
-                  <div className="p-3 bg-purple-50 rounded-lg">
-                    <p className="text-xs text-gray-500">Diesel Stock</p>
-                    <p className="text-gray-900">{(selectedStation.dieselStock || 0).toLocaleString()} L</p>
-                    <span className={`text-xs ${selectedStation.dieselAvailable ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedStation.dieselAvailable ? 'Available' : 'Unavailable'}
-                    </span>
-                  </div>
-                </div>
+                )}
 
-                <div className="flex gap-2">
-                  {!selectedStation.verified && (
-                    <button onClick={() => { handleVerify(selectedStation.id); setSelectedStation(null); }}
-                      className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors">
-                      Verify Station
-                    </button>
-                  )}
-                </div>
+                {selectedStation.number_of_pumps && (
+                  <div className="flex items-center gap-3">
+                    <Fuel className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Number of Pumps</p>
+                      <p className="text-gray-900 text-sm">{selectedStation.number_of_pumps}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                {!selectedStation.is_verified && (
+                  <button
+                    onClick={() => { handleVerify(selectedStation.id); setSelectedStation(null); }}
+                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
+                  >
+                    Verify Station
+                  </button>
+                )}
               </div>
             </div>
           </div>

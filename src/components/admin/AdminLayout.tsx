@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState , useEffect} from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminDashboard } from './AdminDashboard';
@@ -20,7 +20,13 @@ export function AdminLayout() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  if (!user) { navigate('/login'); return null; }
+  useEffect(() => {
+  if (!user) {
+    navigate('/login');
+  }
+}, [user, navigate]);
+
+  if (!user)  return null; 
 
   const handleLogout = () => { logout(); navigate('/login'); };
 

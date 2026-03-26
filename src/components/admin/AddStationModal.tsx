@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock } from 'lucide-react';
+import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock, Calendar, Check, AlertCircle, Sun, Moon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase/client';
 import { db } from '../../lib/supabase/services';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
@@ -15,6 +14,9 @@ interface AddStationModalProps {
   onSuccess: () => void;
 }
 
+// Days of week for operating days selection
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalProps) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -23,19 +25,25 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     stationName: '',
     address: '',
     phone: '',
-    operatingHours: '',
     latitude: '',
     longitude: '',
-    
-    // Operator Details
-    operatorName: '',
-    operatorEmail: '',
-    operatorPhone: '',
     businessLicense: '',
+    operatingLicense: '',
+    environmentalClearance: '',
+    fireSafetyCertificate: '',
+    licenseExpiryDate: '',
+    numberOfPumps: '',
+    vehiclesPerPumpPerSlot: '',
+    openingTime: '06:00',
+    closingTime: '22:00',
+    is24Hours: false,
+    operatingDays: WEEKDAYS, // default all days
     
-    // Initial Stock
-    petrolStock: '',
-    dieselStock: '',
+    // Owner Details
+    ownerName: '',
+    ownerEmail: '',
+    ownerPhone: '',
+    ownerBusinessLicense: '', // owner's personal business license (optional)
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -45,33 +53,23 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
   const validateStep1 = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.stationName.trim()) {
-      newErrors.stationName = 'Station name is required';
-    }
-
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
-    }
-
+    if (!formData.stationName.trim()) newErrors.stationName = 'Station name is required';
+    if (!formData.address.trim()) newErrors.address = 'Address is required';
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
     } else if (!validateEthiopianPhone(formData.phone)) {
       newErrors.phone = 'Invalid Ethiopian phone number (e.g., +251 912 345 678)';
     }
-
-    if (!formData.operatingHours.trim()) {
-      newErrors.operatingHours = 'Operating hours are required';
-    }
-
     if (!formData.latitude.trim() || !formData.longitude.trim()) {
       newErrors.location = 'Location coordinates are required';
     } else {
       const lat = parseFloat(formData.latitude);
       const lng = parseFloat(formData.longitude);
-      if (isNaN(lat) || isNaN(lng)) {
-        newErrors.location = 'Invalid coordinates';
-      }
+      if (isNaN(lat) || isNaN(lng)) newErrors.location = 'Invalid coordinates';
     }
+    if (!formData.businessLicense.trim()) newErrors.businessLicense = 'Business license number is required';
+    if (!formData.numberOfPumps.trim() || parseInt(formData.numberOfPumps) <= 0) newErrors.numberOfPumps = 'Valid number of pumps is required';
+    if (!formData.vehiclesPerPumpPerSlot.trim() || parseInt(formData.vehiclesPerPumpPerSlot) <= 0) newErrors.vehiclesPerPumpPerSlot = 'Valid vehicles per pump per slot is required';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -80,24 +78,20 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
   const validateStep2 = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.operatorName.trim()) {
-      newErrors.operatorName = 'Operator name is required';
+    if (!formData.ownerName.trim()) newErrors.ownerName = 'Owner name is required';
+    if (!formData.ownerEmail.trim()) {
+      newErrors.ownerEmail = 'Email is required';
+    } else if (!validateEmail(formData.ownerEmail)) {
+      newErrors.ownerEmail = 'Invalid email address';
+    }
+    if (!formData.ownerPhone.trim()) {
+      newErrors.ownerPhone = 'Phone number is required';
+    } else if (!validateEthiopianPhone(formData.ownerPhone)) {
+      newErrors.ownerPhone = 'Invalid Ethiopian phone number';
     }
 
-    if (!formData.operatorEmail.trim()) {
-      newErrors.operatorEmail = 'Email is required';
-    } else if (!validateEmail(formData.operatorEmail)) {
-      newErrors.operatorEmail = 'Invalid email address';
-    }
-
-    if (!formData.operatorPhone.trim()) {
-      newErrors.operatorPhone = 'Phone number is required';
-    } else if (!validateEthiopianPhone(formData.operatorPhone)) {
-      newErrors.operatorPhone = 'Invalid Ethiopian phone number';
-    }
-
-    if (!formData.businessLicense.trim()) {
-      newErrors.businessLicense = 'Business license number is required';
+    if (!formData.ownerBusinessLicense.trim()) {
+      newErrors.ownerBusinessLicense = 'Owner business license is required';
     }
 
     setErrors(newErrors);
@@ -105,14 +99,10 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
   };
 
   const handleNext = () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
-    }
+    if (step === 1 && validateStep1()) setStep(2);
   };
 
-  const handleBack = () => {
-    setStep(1);
-  };
+  const handleBack = () => setStep(1);
 
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -125,111 +115,153 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateStep2()) {
-      return;
-    }
-
+    if (!validateStep2()) return;
     setLoading(true);
-
+  
     try {
-      // Generate random password for operator
+      // 1. Ensure the current user is an admin
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        toast.error('You must be logged in');
+        return;
+      }
+      const { data: adminCheck } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single();
+      if (adminCheck?.role !== 'admin') {
+        toast.error('Admin privileges required');
+        return;
+      }
+  
       const tempPassword = generateRandomPassword();
-
-      // Create operator user using regular signup (not admin API)
+      const formattedPhone = formatEthiopianPhone(formData.ownerPhone);
+  
+      // 2. Create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.operatorEmail,
+        email: formData.ownerEmail,
         password: tempPassword,
         options: {
           data: {
-            full_name: formData.operatorName,
-            phone: formatEthiopianPhone(formData.operatorPhone),
-            role: 'operator',
+            full_name: formData.ownerName,
+            phone: formattedPhone,
+            role: 'station_owner',
           },
-          emailRedirectTo: undefined, // Prevent email confirmation redirect
+          emailRedirectTo: undefined,
         },
       });
-
-      if (authError) {
-        throw new Error(`Failed to create operator account: ${authError.message}`);
+  
+      if (authError) throw new Error(`Failed to create owner account: ${authError.message}`);
+      if (!authData.user) throw new Error('No user data returned');
+  
+      const ownerId = authData.user.id;
+  
+      // 3. Poll for the public.users record (created by the trigger)
+      const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      let retries = 0;
+      const maxRetries = 8;   // total wait up to ~255 seconds (4 minutes) if needed
+      let userFound = false;
+  
+      while (retries < maxRetries && !userFound) {
+        await wait(1000 * Math.pow(1.5, retries)); // 1.5s, 2.2s, 3.4s, 5.1s, ...
+        const { data: existingUser, error: checkError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', ownerId)
+          .maybeSingle();
+  
+        if (existingUser) {
+          userFound = true;
+          break;
+        }
+        console.log(`Attempt ${retries + 1}: user record not yet found, waiting...`);
+        retries++;
       }
-
-      if (!authData.user) {
-        throw new Error('Failed to create operator account: No user data returned');
+  
+      if (!userFound) {
+        // If the trigger never inserted, we try a final manual insert with a longer wait
+        console.warn('User record not found after polling. Attempting final manual insert...');
+        const { error: finalInsertError } = await supabase
+          .from('users')
+          .upsert({
+            id: ownerId,
+            email: formData.ownerEmail,
+            full_name: formData.ownerName,
+            phone: formattedPhone,
+            role: 'station_owner',
+            business_license_number: formData.ownerBusinessLicense,
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+  
+        if (finalInsertError) {
+          throw new Error('User record could not be created. Please check that the trigger on auth.users is active.');
+        }
       }
-
-      // IMPORTANT: Since we're using regular signup, the user might need email confirmation
-      // We'll handle this in the backend or via Supabase settings
-      const operatorId = authData.user.id;
-
-      // Wait a moment for the trigger to create the user profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Update the user profile that was auto-created by trigger
-      const { error: profileError } = await supabase
+  
+      // 4. Update the business license (if needed)
+      const { error: updateError } = await supabase
         .from('users')
-        .update({
-          full_name: formData.operatorName,
-          phone: formatEthiopianPhone(formData.operatorPhone),
-          role: 'operator',
-          is_active: true,
-        })
-        .eq('id', operatorId);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        throw new Error(`Failed to update operator profile: ${profileError.message}`);
-      }
-
-      // Create station
-      const { data: stationData, error: stationError } = await supabase
+        .update({ business_license_number: formData.ownerBusinessLicense })
+        .eq('id', ownerId);
+  
+      if (updateError) console.warn('Could not update business license:', updateError);
+  
+      // 5. Create the station
+      const stationData = {
+        name: formData.stationName,
+        address: formData.address,
+        phone: formatEthiopianPhone(formData.phone),
+        latitude: parseFloat(formData.latitude),
+        longitude: parseFloat(formData.longitude),
+        owner_id: ownerId,
+        business_license_number: formData.businessLicense,
+        operating_license_number: formData.operatingLicense || null,
+        environmental_clearance_number: formData.environmentalClearance || null,
+        fire_safety_certificate_number: formData.fireSafetyCertificate || null,
+        license_expiry_date: formData.licenseExpiryDate || null,
+        number_of_pumps: parseInt(formData.numberOfPumps),
+        vehicles_per_pump_per_slot: parseInt(formData.vehiclesPerPumpPerSlot),
+        opening_time: formData.is24Hours ? '00:00' : formData.openingTime,
+        closing_time: formData.is24Hours ? '23:59' : formData.closingTime,
+        is_24_hours: formData.is24Hours,
+        operating_days: formData.operatingDays,
+        is_verified: false,
+        is_active: true,
+      };
+  
+      const { error: stationError } = await supabase
         .from('stations')
-        .insert({
-          name: formData.stationName,
-          address: formData.address,
-          phone: formatEthiopianPhone(formData.phone),
-          operating_hours: formData.operatingHours,
-          latitude: parseFloat(formData.latitude),
-          longitude: parseFloat(formData.longitude),
-          operator_id: operatorId,
-          petrol_stock: parseFloat(formData.petrolStock) || 0,
-          diesel_stock: parseFloat(formData.dieselStock) || 0,
-          petrol_available: (parseFloat(formData.petrolStock) || 0) > 0,
-          diesel_available: (parseFloat(formData.dieselStock) || 0) > 0,
-          is_verified: false,
-        })
+        .insert(stationData)
         .select()
         .single();
-
-      if (stationError) {
-        // If station creation fails, we should ideally clean up the auth user
-        // but since we don't have admin access, we'll just log it
-        console.error('Failed to create station, operator account may exist without station:', stationError);
-        throw new Error(`Failed to create station: ${stationError.message}`);
+  
+      if (stationError) throw new Error(`Failed to create station: ${stationError.message}`);
+  
+      // 6. Log activity (using correct columns for version 2)
+      const { error: activityError } = await supabase
+        .from('system_activity')
+        .insert({
+          user_id: currentUser.id,
+          user_role: 'admin',
+          action: 'STATION_CREATED',
+          description: `New station registered: ${formData.stationName}`,
+          category: 'station',
+          metadata: { stationName: formData.stationName, ownerEmail: formData.ownerEmail },
+          success: true,
+        });
+  
+      if (activityError) {
+        console.error('Failed to log activity:', activityError);
       }
-
-      // Log system activity
-      await db.systemActivity.create({
-        type: 'station_verified',
-        description: 'New station registered',
-        actor: 'Admin',
-        timestamp: new Date().toISOString(),
-        details: `${formData.stationName} registered by admin`,
-      });
-
-      // TODO: Send email with credentials to operator
-      // For now, show credentials in toast
+  
       toast.success('Station registered successfully!', {
-        description: `Email: ${formData.operatorEmail}\nTemporary Password: ${tempPassword}\n\nOperator credentials have been sent via email.`,
+        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}\n\nCredentials have been sent to the owner's email.`,
         duration: 10000,
       });
-
-      console.log('Operator Credentials:', {
-        email: formData.operatorEmail,
-        password: tempPassword,
-        stationId: stationData.id,
-      });
-
+  
       onSuccess();
       onClose();
       resetForm();
@@ -248,26 +280,38 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
       stationName: '',
       address: '',
       phone: '',
-      operatingHours: '',
       latitude: '',
       longitude: '',
-      operatorName: '',
-      operatorEmail: '',
-      operatorPhone: '',
       businessLicense: '',
-      petrolStock: '',
-      dieselStock: '',
+      operatingLicense: '',
+      environmentalClearance: '',
+      fireSafetyCertificate: '',
+      licenseExpiryDate: '',
+      numberOfPumps: '',
+      vehiclesPerPumpPerSlot: '',
+      openingTime: '06:00',
+      closingTime: '22:00',
+      is24Hours: false,
+      operatingDays: WEEKDAYS,
+      ownerName: '',
+      ownerEmail: '',
+      ownerPhone: '',
+      ownerBusinessLicense: '',
     });
     setStep(1);
     setErrors({});
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const toggleDay = (day: string) => {
+    const newDays = formData.operatingDays.includes(day)
+      ? formData.operatingDays.filter(d => d !== day)
+      : [...formData.operatingDays, day];
+    handleChange('operatingDays', newDays);
   };
 
   return (
@@ -284,21 +328,14 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
               <p className="text-sm text-purple-100">Step {step} of 2</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            disabled={loading}
-          >
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors" disabled={loading}>
             <X className="w-6 h-6 text-white" />
           </button>
         </div>
 
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
-          <div
-            className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-300"
-            style={{ width: `${(step / 2) * 100}%` }}
-          />
+          <div className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-300" style={{ width: `${(step / 2) * 100}%` }} />
         </div>
 
         {/* Content */}
@@ -307,17 +344,13 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Details</h3>
 
+              {/* Basic Info */}
               <div>
                 <Label htmlFor="stationName">Station Name *</Label>
                 <div className="mt-1 relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="stationName"
-                    value={formData.stationName}
-                    onChange={(e) => handleChange('stationName', e.target.value)}
-                    placeholder="e.g., Shell Station Downtown"
-                    className={`pl-10 ${errors.stationName ? 'border-red-500' : ''}`}
-                  />
+                  <Input id="stationName" value={formData.stationName} onChange={e => handleChange('stationName', e.target.value)}
+                    placeholder="e.g., Shell Station Downtown" className={`pl-10 ${errors.stationName ? 'border-red-500' : ''}`} />
                 </div>
                 {errors.stationName && <p className="text-sm text-red-600 mt-1">{errors.stationName}</p>}
               </div>
@@ -326,163 +359,186 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
                 <Label htmlFor="address">Address *</Label>
                 <div className="mt-1 relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => handleChange('address', e.target.value)}
-                    placeholder="e.g., Bole Road, Addis Ababa"
-                    className={`pl-10 ${errors.address ? 'border-red-500' : ''}`}
-                  />
+                  <Input id="address" value={formData.address} onChange={e => handleChange('address', e.target.value)}
+                    placeholder="e.g., Bole Road, Addis Ababa" className={`pl-10 ${errors.address ? 'border-red-500' : ''}`} />
                 </div>
                 {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
               </div>
 
               <div>
-                <Label htmlFor="phone">Phone Number *</Label>
+                <Label htmlFor="phone">Station Phone *</Label>
                 <div className="mt-1 relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => handleChange('phone', e.target.value)}
-                    placeholder="+251 912 345 678"
-                    className={`pl-10 ${errors.phone ? 'border-red-500' : ''}`}
-                  />
+                  <Input id="phone" value={formData.phone} onChange={e => handleChange('phone', e.target.value)}
+                    placeholder="+251 912 345 678" className={`pl-10 ${errors.phone ? 'border-red-500' : ''}`} />
                 </div>
                 {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="operatingHours">Operating Hours *</Label>
-                <div className="mt-1 relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="operatingHours"
-                    value={formData.operatingHours}
-                    onChange={(e) => handleChange('operatingHours', e.target.value)}
-                    placeholder="e.g., 06:00 - 22:00"
-                    className={`pl-10 ${errors.operatingHours ? 'border-red-500' : ''}`}
-                  />
-                </div>
-                {errors.operatingHours && <p className="text-sm text-red-600 mt-1">{errors.operatingHours}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="latitude">Latitude *</Label>
-                  <Input
-                    id="latitude"
-                    value={formData.latitude}
-                    onChange={(e) => handleChange('latitude', e.target.value)}
-                    placeholder="9.0192"
-                    className={errors.location ? 'border-red-500' : ''}
-                  />
+                  <Input id="latitude" value={formData.latitude} onChange={e => handleChange('latitude', e.target.value)}
+                    placeholder="9.0192" className={errors.location ? 'border-red-500' : ''} />
                 </div>
                 <div>
                   <Label htmlFor="longitude">Longitude *</Label>
-                  <Input
-                    id="longitude"
-                    value={formData.longitude}
-                    onChange={(e) => handleChange('longitude', e.target.value)}
-                    placeholder="38.7525"
-                    className={errors.location ? 'border-red-500' : ''}
-                  />
+                  <Input id="longitude" value={formData.longitude} onChange={e => handleChange('longitude', e.target.value)}
+                    placeholder="38.7525" className={errors.location ? 'border-red-500' : ''} />
                 </div>
               </div>
               {errors.location && <p className="text-sm text-red-600 mt-1">{errors.location}</p>}
 
+              {/* Operating Hours */}
+              <div>
+                <Label className="mb-2 block">Operating Schedule</Label>
+                <div className="flex items-center gap-2 mb-3">
+                  <input type="checkbox" id="is24Hours" checked={formData.is24Hours}
+                    onChange={e => handleChange('is24Hours', e.target.checked)} className="w-4 h-4" />
+                  <Label htmlFor="is24Hours" className="cursor-pointer">24/7 Operation</Label>
+                </div>
+                {!formData.is24Hours && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="openingTime">Opening Time</Label>
+                      <Input type="time" id="openingTime" value={formData.openingTime}
+                        onChange={e => handleChange('openingTime', e.target.value)} />
+                    </div>
+                    <div>
+                      <Label htmlFor="closingTime">Closing Time</Label>
+                      <Input type="time" id="closingTime" value={formData.closingTime}
+                        onChange={e => handleChange('closingTime', e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Operating Days */}
+              <div>
+                <Label className="mb-2 block">Operating Days</Label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map(day => (
+                    <button key={day} type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                        formData.operatingDays.includes(day)
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Licenses & Capacity */}
+              <div>
+                <Label htmlFor="businessLicense">Business License Number *</Label>
+                <Input id="businessLicense" value={formData.businessLicense} onChange={e => handleChange('businessLicense', e.target.value)}
+                  placeholder="BL-2024-XXXX" className={errors.businessLicense ? 'border-red-500' : ''} />
+                {errors.businessLicense && <p className="text-sm text-red-600 mt-1">{errors.businessLicense}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="petrolStock">Initial Petrol Stock (L)</Label>
-                  <Input
-                    id="petrolStock"
-                    type="number"
-                    min="0"
-                    value={formData.petrolStock}
-                    onChange={(e) => handleChange('petrolStock', e.target.value)}
-                    placeholder="0"
-                  />
+                  <Label htmlFor="operatingLicense">Operating License Number</Label>
+                  <Input id="operatingLicense" value={formData.operatingLicense} onChange={e => handleChange('operatingLicense', e.target.value)}
+                    placeholder="Optional" />
                 </div>
                 <div>
-                  <Label htmlFor="dieselStock">Initial Diesel Stock (L)</Label>
-                  <Input
-                    id="dieselStock"
-                    type="number"
-                    min="0"
-                    value={formData.dieselStock}
-                    onChange={(e) => handleChange('dieselStock', e.target.value)}
-                    placeholder="0"
-                  />
+                  <Label htmlFor="licenseExpiryDate">License Expiry Date</Label>
+                  <Input type="date" id="licenseExpiryDate" value={formData.licenseExpiryDate}
+                    onChange={e => handleChange('licenseExpiryDate', e.target.value)} />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="numberOfPumps">Number of Pumps *</Label>
+                  <Input type="number" id="numberOfPumps" value={formData.numberOfPumps}
+                    onChange={e => handleChange('numberOfPumps', e.target.value)} placeholder="e.g., 4"
+                    className={errors.numberOfPumps ? 'border-red-500' : ''} />
+                  {errors.numberOfPumps && <p className="text-sm text-red-600 mt-1">{errors.numberOfPumps}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="vehiclesPerPumpPerSlot">Vehicles per Pump per Slot *</Label>
+                  <Input type="number" id="vehiclesPerPumpPerSlot" value={formData.vehiclesPerPumpPerSlot}
+                    onChange={e => handleChange('vehiclesPerPumpPerSlot', e.target.value)} placeholder="e.g., 2"
+                    className={errors.vehiclesPerPumpPerSlot ? 'border-red-500' : ''} />
+                  {errors.vehiclesPerPumpPerSlot && <p className="text-sm text-red-600 mt-1">{errors.vehiclesPerPumpPerSlot}</p>}
+                </div>
+              </div>
+
+              {/* Optional license numbers */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="environmentalClearance">Environmental Clearance No.</Label>
+                  <Input id="environmentalClearance" value={formData.environmentalClearance}
+                    onChange={e => handleChange('environmentalClearance', e.target.value)} placeholder="Optional" />
+                </div>
+                <div>
+                  <Label htmlFor="fireSafetyCertificate">Fire Safety Certificate No.</Label>
+                  <Input id="fireSafetyCertificate" value={formData.fireSafetyCertificate}
+                    onChange={e => handleChange('fireSafetyCertificate', e.target.value)} placeholder="Optional" />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                <AlertCircle className="w-4 h-4 inline mr-1" />
+                Fuel inventory (initial stock) can be set later by the station owner.
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Operator Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Owner Details</h3>
 
               <div>
-                <Label htmlFor="operatorName">Operator Full Name *</Label>
-                <Input
-                  id="operatorName"
-                  value={formData.operatorName}
-                  onChange={(e) => handleChange('operatorName', e.target.value)}
-                  placeholder="e.g., John Doe"
-                  className={errors.operatorName ? 'border-red-500' : ''}
-                />
-                {errors.operatorName && <p className="text-sm text-red-600 mt-1">{errors.operatorName}</p>}
+                <Label htmlFor="ownerName">Owner Full Name *</Label>
+                <Input id="ownerName" value={formData.ownerName} onChange={e => handleChange('ownerName', e.target.value)}
+                  placeholder="e.g., John Doe" className={errors.ownerName ? 'border-red-500' : ''} />
+                {errors.ownerName && <p className="text-sm text-red-600 mt-1">{errors.ownerName}</p>}
               </div>
 
               <div>
-                <Label htmlFor="operatorEmail">Operator Email *</Label>
+                <Label htmlFor="ownerEmail">Owner Email *</Label>
                 <div className="mt-1 relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="operatorEmail"
-                    type="email"
-                    value={formData.operatorEmail}
-                    onChange={(e) => handleChange('operatorEmail', e.target.value)}
-                    placeholder="operator@example.com"
-                    className={`pl-10 ${errors.operatorEmail ? 'border-red-500' : ''}`}
-                  />
+                  <Input id="ownerEmail" type="email" value={formData.ownerEmail}
+                    onChange={e => handleChange('ownerEmail', e.target.value)}
+                    placeholder="owner@example.com" className={`pl-10 ${errors.ownerEmail ? 'border-red-500' : ''}`} />
                 </div>
-                {errors.operatorEmail && <p className="text-sm text-red-600 mt-1">{errors.operatorEmail}</p>}
+                {errors.ownerEmail && <p className="text-sm text-red-600 mt-1">{errors.ownerEmail}</p>}
                 <p className="text-xs text-gray-500 mt-1">Login credentials will be sent to this email</p>
               </div>
 
               <div>
-                <Label htmlFor="operatorPhone">Operator Phone *</Label>
+                <Label htmlFor="ownerPhone">Owner Phone *</Label>
                 <div className="mt-1 relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="operatorPhone"
-                    value={formData.operatorPhone}
-                    onChange={(e) => handleChange('operatorPhone', e.target.value)}
-                    placeholder="+251 912 345 678"
-                    className={`pl-10 ${errors.operatorPhone ? 'border-red-500' : ''}`}
-                  />
+                  <Input id="ownerPhone" value={formData.ownerPhone} onChange={e => handleChange('ownerPhone', e.target.value)}
+                    placeholder="+251 912 345 678" className={`pl-10 ${errors.ownerPhone ? 'border-red-500' : ''}`} />
                 </div>
-                {errors.operatorPhone && <p className="text-sm text-red-600 mt-1">{errors.operatorPhone}</p>}
+                {errors.ownerPhone && <p className="text-sm text-red-600 mt-1">{errors.ownerPhone}</p>}
               </div>
 
               <div>
-                <Label htmlFor="businessLicense">Business License Number *</Label>
-                <div className="mt-1 relative">
-                  <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    id="businessLicense"
-                    value={formData.businessLicense}
-                    onChange={(e) => handleChange('businessLicense', e.target.value)}
-                    placeholder="BL-2024-XXXX"
-                    className={`pl-10 ${errors.businessLicense ? 'border-red-500' : ''}`}
+                <Label htmlFor="ownerBusinessLicense">Owner's Business License *</Label>
+                <Input id="ownerBusinessLicense" value={formData.ownerBusinessLicense}
+                  onChange={e => handleChange('ownerBusinessLicense', e.target.value)}
+                  placeholder="e.g., BL-2024-XXXX" 
+                  className={errors.ownerBusinessLicense ? 'border-red-500' : ''}
                   />
-                </div>
-                {errors.businessLicense && <p className="text-sm text-red-600 mt-1">{errors.businessLicense}</p>}
+                  {errors.ownerBusinessLicense && (
+    <p className="text-sm text-red-600 mt-1">{errors.ownerBusinessLicense}</p>
+  )}
+                <p className="text-xs text-gray-500 mt-1">Will be stored in owner's profile</p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 font-medium mb-1">Account Creation</p>
                 <p className="text-xs text-blue-700">
-                  A temporary password will be automatically generated and sent to the operator's email. The operator can change this password after their first login.
+                  A temporary password will be automatically generated and sent to the owner's email. The owner can change this password after first login.
                 </p>
               </div>
             </div>
@@ -509,18 +565,14 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
                 Next
               </Button>
             ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="bg-gradient-to-r from-purple-600 to-blue-600"
-              >
+              <Button onClick={handleSubmit} disabled={loading} className="bg-gradient-to-r from-purple-600 to-blue-600">
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Creating...
                   </>
                 ) : (
-                  'Create Station'
+                  'Create Station & Owner'
                 )}
               </Button>
             )}

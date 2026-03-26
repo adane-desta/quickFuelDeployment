@@ -80,7 +80,7 @@ export interface SystemActivity {
   description: string;
   actor: string;
   timestamp: string;
-  details?: string;
+  details?: string | any;
 }
 
 export interface ReservationData {
