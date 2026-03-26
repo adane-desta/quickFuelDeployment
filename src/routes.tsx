@@ -5,7 +5,7 @@ import { RegisterDriver } from './components/auth/RegisterDriver';
 import { DriverLayout } from './components/driver/DriverLayout';
 import { OperatorLayout } from './components/operator/OperatorLayout';
 import { AdminLayout } from './components/admin/AdminLayout';
-import { OwnerDashboard } from './components/station_owner/OwnerDashboard';
+import { OwnerLayout } from './components/station_owner/OwnerLayout';
 
 export const router = createBrowserRouter([
   {
@@ -15,10 +15,6 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     Component: LoginPage,
-  },
-  {
-    path: '/station_owner',
-    Component: OwnerDashboard,
   },
   {
     path: '/register/driver',
@@ -31,6 +27,10 @@ export const router = createBrowserRouter([
   {
     path: '/operator/*',
     Component: OperatorLayout,
+  },
+  {
+    path: '/station_owner/*',
+    Component: OwnerLayout,
   },
   {
     path: '/admin/*',
