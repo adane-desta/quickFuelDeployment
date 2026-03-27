@@ -125,14 +125,15 @@ export const userService = {
       const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
 
       // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: operatorData.email,
         password: tempPassword,
-        email_confirm: true,
-        user_metadata: {
-          full_name: operatorData.full_name,
-          phone: operatorData.phone,
-          role: 'operator',
+        options: {
+          data: {
+            full_name: operatorData.full_name,
+            phone: operatorData.phone,
+            role: 'operator',
+          },
         },
       });
 

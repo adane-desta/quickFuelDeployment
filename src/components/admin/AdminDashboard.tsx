@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockUsers, mockStations, mockReservations, mockSystemActivities } from '../../data/mockData';
+import { supabase } from '../../lib/supabase/client';
+import { db } from '../../lib/supabase/services'; // for system activity, if needed
 import {
   Users, Building2, Calendar, Activity, TrendingUp, CheckCircle, AlertTriangle, ArrowRight,
-  UserCheck, UserX, Fuel, Clock, DollarSign, BarChart3
+  UserCheck, UserX, Fuel, Clock, DollarSign, BarChart3, Loader2
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -11,27 +13,145 @@ interface AdminDashboardProps {
 
 export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const { user } = useAuth();
-  const totalDrivers = mockUsers.filter(u => u.role === 'driver').length;
-  const totalOperators = mockUsers.filter(u => u.role === 'operator').length;
-  const totalStations = mockStations.length;
-  const verifiedStations = mockStations.filter(s => s.verified).length;
-  const totalReservations = mockReservations.length;
-  const activeUsers = mockUsers.filter(u => u.isActive).length;
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    totalDrivers: 0,
+    totalOperators: 0,
+    totalAdmins: 0,
+    totalStations: 0,
+    verifiedStations: 0,
+    pendingStations: 0,
+    totalReservations: 0,
+    pendingStationsList: [] as any[],
+    inactiveUsersList: [] as any[],
+    recentActivities: [] as any[],
+    fuelPrices: [] as any[],
+    analytics: { totalAvailable: 0, totalDispensed: 0, digitalRate: 0 },
+  });
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      // 1. Users stats
+      const { data: users } = await supabase.from('users').select('id, role, is_active');
+      const totalUsers = users?.length || 0;
+      const activeUsers = users?.filter(u => u.is_active).length || 0;
+      const totalDrivers = users?.filter(u => u.role === 'driver').length || 0;
+      const totalOperators = users?.filter(u => u.role === 'operator').length || 0;
+      const totalAdmins = users?.filter(u => u.role === 'admin').length || 0;
+
+      // 2. Stations stats
+      const { data: stations } = await supabase.from('stations').select('id, name, address, is_verified');
+      const totalStations = stations?.length || 0;
+      const verifiedStations = stations?.filter(s => s.is_verified).length || 0;
+      const pendingStations = totalStations - verifiedStations;
+      const pendingStationsList = stations?.filter(s => !s.is_verified) || [];
+
+      // 3. Reservations count
+      const { count: totalReservations, error: resError } = await supabase
+        .from('reservations')
+        .select('id', { count: 'exact', head: true });
+      if (resError) console.error('Error fetching reservations count:', resError);
+      const reservationsCount = totalReservations || 0;
+
+      // 4. Inactive users
+      const { data: inactiveUsers } = await supabase
+        .from('users')
+        .select('id, full_name, email, role')
+        .eq('is_active', false);
+      const inactiveUsersList = inactiveUsers || [];
+
+      // 5. Recent system activity
+      const { data: activities } = await supabase
+        .from('system_activity')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(6);
+      const recentActivities = activities || [];
+
+      // 6. Fuel prices (current active prices)
+      const { data: fuelTypes } = await supabase
+        .from('fuel_types')
+        .select('name, base_price_per_liter')
+        .in('name', ['Petrol', 'Diesel']);
+      const fuelPrices = fuelTypes || [];
+
+      // 7. Analytics summary
+      // Total available fuel: sum of total_available from fuel_analytics
+      const { data: analyticsData } = await supabase
+        .from('fuel_analytics')
+        .select('total_available, total_dispensed, digital_dispensed');
+      let totalAvailable = 0;
+      let totalDispensed = 0;
+      let totalDigital = 0;
+      if (analyticsData) {
+        totalAvailable = analyticsData.reduce((sum, a) => sum + (a.total_available || 0), 0);
+        totalDispensed = analyticsData.reduce((sum, a) => sum + (a.total_dispensed || 0), 0);
+        totalDigital = analyticsData.reduce((sum, a) => sum + (a.digital_dispensed || 0), 0);
+      }
+      const digitalRate = totalDispensed > 0 ? (totalDigital / totalDispensed) * 100 : 0;
+
+      setDashboardData({
+        totalUsers,
+        activeUsers,
+        totalDrivers,
+        totalOperators,
+        totalAdmins,
+        totalStations,
+        verifiedStations,
+        pendingStations,
+        pendingStationsList,
+        inactiveUsersList,
+        recentActivities,
+        fuelPrices,
+        totalReservations: reservationsCount,
+        analytics: {
+          totalAvailable,
+          totalDispensed,
+          digitalRate: parseFloat(digitalRate.toFixed(1)),
+        },
+      });
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <p className="text-sm text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Helper to format numbers with K/M if needed
+  const formatNumber = (num: number) => num.toLocaleString();
 
   return (
     <div className="p-4 lg:p-8">
       <div className="mb-6">
         <h1 className="text-gray-900 mb-1">Admin Dashboard</h1>
-        <p className="text-gray-600">Welcome back, {user?.fullName}. Here's your system overview.</p>
+        <p className="text-gray-600">Welcome back, {user?.fullName || 'Admin'}. Here's your system overview.</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Users', value: mockUsers.length, icon: Users, color: 'bg-blue-100 text-blue-600', sub: `${activeUsers} active` },
-          { label: 'Drivers', value: totalDrivers, icon: UserCheck, color: 'bg-green-100 text-green-600', sub: 'Registered' },
-          { label: 'Operators', value: totalOperators, icon: Building2, color: 'bg-orange-100 text-orange-600', sub: `${verifiedStations} verified` },
-          { label: 'Reservations', value: totalReservations, icon: Calendar, color: 'bg-purple-100 text-purple-600', sub: 'Total' },
+          { label: 'Total Users', value: dashboardData.totalUsers, icon: Users, color: 'bg-blue-100 text-blue-600', sub: `${dashboardData.activeUsers} active` },
+          { label: 'Drivers', value: dashboardData.totalDrivers, icon: UserCheck, color: 'bg-green-100 text-green-600', sub: 'Registered' },
+          { label: 'Operators', value: dashboardData.totalOperators, icon: Building2, color: 'bg-orange-100 text-orange-600', sub: `${dashboardData.verifiedStations} verified` },
+          { label: 'Reservations', value: dashboardData.totalReservations, icon: Calendar, color: 'bg-purple-100 text-purple-600', sub: 'Total' },
         ].map((stat, i) => (
           <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <div className="flex items-center gap-3 mb-2">
@@ -60,28 +180,29 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           <div className="p-4">
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="p-3 bg-green-50 rounded-lg text-center">
-                <p className="text-2xl text-green-700">{verifiedStations}</p>
+                <p className="text-2xl text-green-700">{dashboardData.verifiedStations}</p>
                 <p className="text-xs text-gray-500">Verified</p>
               </div>
               <div className="p-3 bg-yellow-50 rounded-lg text-center">
-                <p className="text-2xl text-yellow-700">{totalStations - verifiedStations}</p>
+                <p className="text-2xl text-yellow-700">{dashboardData.pendingStations}</p>
                 <p className="text-xs text-gray-500">Pending</p>
               </div>
             </div>
-            <div className="space-y-2">
-              {mockStations.filter(s => !s.verified).map(s => (
-                <div key={s.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div>
-                    <p className="text-sm text-gray-900">{s.name}</p>
-                    <p className="text-xs text-gray-500">{s.address}</p>
+            {dashboardData.pendingStationsList.length > 0 ? (
+              <div className="space-y-2">
+                {dashboardData.pendingStationsList.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div>
+                      <p className="text-sm text-gray-900">{s.name}</p>
+                      <p className="text-xs text-gray-500">{s.address}</p>
+                    </div>
+                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Pending</span>
                   </div>
-                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Pending</span>
-                </div>
-              ))}
-              {mockStations.filter(s => !s.verified).length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-2">All stations verified</p>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-2">All stations verified</p>
+            )}
           </div>
         </div>
 
@@ -98,32 +219,36 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           <div className="p-4">
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="p-3 bg-blue-50 rounded-lg text-center">
-                <p className="text-xl text-blue-700">{totalDrivers}</p>
+                <p className="text-xl text-blue-700">{dashboardData.totalDrivers}</p>
                 <p className="text-xs text-gray-500">Drivers</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg text-center">
-                <p className="text-xl text-green-700">{totalOperators}</p>
+                <p className="text-xl text-green-700">{dashboardData.totalOperators}</p>
                 <p className="text-xs text-gray-500">Operators</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-lg text-center">
-                <p className="text-xl text-purple-700">{mockUsers.filter(u => u.role === 'admin').length}</p>
+                <p className="text-xl text-purple-700">{dashboardData.totalAdmins}</p>
                 <p className="text-xs text-gray-500">Admins</p>
               </div>
             </div>
-            <div className="space-y-2">
-              {mockUsers.filter(u => !u.isActive).map(u => (
-                <div key={u.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg border border-red-200">
-                  <div className="flex items-center gap-2">
-                    <UserX className="w-4 h-4 text-red-500" />
-                    <div>
-                      <p className="text-sm text-gray-900">{u.fullName}</p>
-                      <p className="text-xs text-gray-500">{u.role} - {u.email}</p>
+            {dashboardData.inactiveUsersList.length > 0 ? (
+              <div className="space-y-2">
+                {dashboardData.inactiveUsersList.map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-2">
+                      <UserX className="w-4 h-4 text-red-500" />
+                      <div>
+                        <p className="text-sm text-gray-900">{u.full_name}</p>
+                        <p className="text-xs text-gray-500">{u.role} - {u.email}</p>
+                      </div>
                     </div>
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Inactive</span>
                   </div>
-                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Inactive</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-2">No inactive users</p>
+            )}
           </div>
         </div>
       </div>
@@ -143,14 +268,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           <div className="p-4">
             <p className="text-sm text-gray-600 mb-3">Set and manage system-wide fuel prices across all stations</p>
             <div className="flex items-center gap-4">
-              <div className="flex-1 p-3 bg-blue-50 rounded-lg text-center">
-                <p className="text-lg text-blue-700">ETB 65.00</p>
-                <p className="text-xs text-gray-500">Petrol /L</p>
-              </div>
-              <div className="flex-1 p-3 bg-green-50 rounded-lg text-center">
-                <p className="text-lg text-green-700">ETB 58.00</p>
-                <p className="text-xs text-gray-500">Diesel /L</p>
-              </div>
+              {dashboardData.fuelPrices.length > 0 ? (
+                dashboardData.fuelPrices.map(fp => (
+                  <div key={fp.name} className="flex-1 p-3 bg-blue-50 rounded-lg text-center">
+                    <p className="text-lg text-blue-700">ETB {fp.base_price_per_liter.toFixed(2)}</p>
+                    <p className="text-xs text-gray-500">{fp.name} /L</p>
+                  </div>
+                ))
+              ) : (
+                <div className="w-full text-center text-gray-500 text-sm py-2">No fuel prices set</div>
+              )}
             </div>
           </div>
         </div>
@@ -169,15 +296,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <p className="text-sm text-gray-600 mb-3">Comprehensive fuel availability and dispensing analytics</p>
             <div className="grid grid-cols-3 gap-2">
               <div className="p-2 bg-green-50 rounded-lg text-center">
-                <p className="text-sm text-green-700">45,600L</p>
+                <p className="text-sm text-green-700">{formatNumber(dashboardData.analytics.totalAvailable)}L</p>
                 <p className="text-xs text-gray-500">Available</p>
               </div>
               <div className="p-2 bg-blue-50 rounded-lg text-center">
-                <p className="text-sm text-blue-700">91,950L</p>
+                <p className="text-sm text-blue-700">{formatNumber(dashboardData.analytics.totalDispensed)}L</p>
                 <p className="text-xs text-gray-500">Dispensed</p>
               </div>
               <div className="p-2 bg-purple-50 rounded-lg text-center">
-                <p className="text-sm text-purple-700">74.2%</p>
+                <p className="text-sm text-purple-700">{dashboardData.analytics.digitalRate}%</p>
                 <p className="text-xs text-gray-500">Digital</p>
               </div>
             </div>
@@ -195,33 +322,46 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             View All <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-        <div className="divide-y divide-gray-200">
-          {mockSystemActivities.slice(0, 6).map(activity => {
-            const typeColors: Record<string, string> = {
-              reservation_made: 'bg-blue-100 text-blue-600',
-              fuel_updated: 'bg-green-100 text-green-600',
-              user_registered: 'bg-purple-100 text-purple-600',
-              queue_reported: 'bg-yellow-100 text-yellow-600',
-              payment_processed: 'bg-emerald-100 text-emerald-600',
-              station_verified: 'bg-orange-100 text-orange-600',
-              user_deactivated: 'bg-red-100 text-red-600',
-            };
-            return (
-              <div key={activity.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${typeColors[activity.type] || 'bg-gray-100 text-gray-600'}`}>
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">{activity.description}</p>
-                    <p className="text-xs text-gray-500">{activity.details}</p>
-                    <p className="text-xs text-gray-400 mt-1">By {activity.actor} - {new Date(activity.timestamp).toLocaleString()}</p>
+        {dashboardData.recentActivities.length > 0 ? (
+          <div className="divide-y divide-gray-200">
+            {dashboardData.recentActivities.map(activity => {
+              const typeColors: Record<string, string> = {
+                reservation_made: 'bg-blue-100 text-blue-600',
+                fuel_updated: 'bg-green-100 text-green-600',
+                user_registered: 'bg-purple-100 text-purple-600',
+                queue_reported: 'bg-yellow-100 text-yellow-600',
+                payment_processed: 'bg-emerald-100 text-emerald-600',
+                station_verified: 'bg-orange-100 text-orange-600',
+                user_deactivated: 'bg-red-100 text-red-600',
+                STATION_CREATED: 'bg-indigo-100 text-indigo-600',
+                FUEL_DELIVERY_COMPLETED: 'bg-teal-100 text-teal-600',
+              };
+              const color = typeColors[activity.action] || typeColors[activity.type] || 'bg-gray-100 text-gray-600';
+              return (
+                <div key={activity.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900">{activity.description}</p>
+                      {activity.metadata && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {typeof activity.metadata === 'object' ? JSON.stringify(activity.metadata) : activity.metadata}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {activity.user_id ? `By ${activity.user_role || 'User'}` : 'System'} - {new Date(activity.created_at).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-6 text-center text-gray-500">No recent activity recorded.</div>
+        )}
       </div>
     </div>
   );
