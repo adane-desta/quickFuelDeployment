@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase/client'
 import { Station } from '../../types';
 import {
   Building2, Search, MapPin, Clock, Users, CheckCircle, XCircle, Shield, Eye,
-  Loader2, X, Phone, AlertTriangle, Plus, Calendar, User
+  Loader2, X, Phone, AlertTriangle, Plus, Calendar, User, FileText, Fuel
 } from 'lucide-react';
 import { AddStationModal } from './AddStationModal';
 import { Button } from '../ui/button';
