@@ -78,13 +78,22 @@ export class UserService {
 // =====================================================
 
 export class StationService {
-  static async getAll(): Promise<Station[]> {
+  
+static async getAll(): Promise<Station[]> {
     const { data, error } = await supabase
       .from('stations')
-      .select('*')
+      .select(`
+        *,
+        owner:owner_id (
+          full_name
+        )
+      `)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(station => ({
+      ...station,
+      owner_name: station.owner?.full_name || 'Unknown',
+    }));
   }
 
   static async getById(id: string): Promise<Station | null> {
@@ -128,18 +137,26 @@ export class StationService {
   }
 
   static async verify(id: string, verifiedBy: string): Promise<Station | null> {
-    const { data, error } = await supabase
-      .from('stations')
-      .update({
-        is_verified: true,
-        verified_by: verifiedBy,
-        verified_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('stations')
+        .update({
+          is_verified: true,
+          verified_by: verifiedBy,
+          verification_date: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        console.error('Supabase error in verify:', error);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error('Error in verify method:', error);
+      throw error;
+    }
   }
 
   static async updateStock(id: string, petrolStock?: number, dieselStock?: number): Promise<Station | null> {
