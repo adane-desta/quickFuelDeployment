@@ -187,6 +187,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: email.trim().toLowerCase(),
         password,
         options: {
+          data: {
+            full_name: profileData.fullName,
+            phone: profileData.phone,
+            role: profileData.role || 'driver',
+          },
           emailRedirectTo: `${window.location.origin}/login`,
         },
       });
@@ -211,43 +216,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Create user profile
-      const { error: profileError } = await supabase.from('users').insert({
-        id: authData.user.id,
-        email: email.trim().toLowerCase(),
-        full_name: profileData.fullName?.trim() || '',
-        phone: profileData.phone?.trim() || '',
-        role: profileData.role || 'driver',
-        address: profileData.address?.trim() || '',
-        is_active: true,
-        // Driver fields
-        vehicle_model: profileData.vehicleModel?.trim(),
-        plate_number: profileData.plateNumber?.trim().toUpperCase(),
-        preferred_fuel_type: profileData.preferredFuelType,
-        license_number: profileData.licenseNumber?.trim().toUpperCase(),
-        // Operator fields (shouldn't be set during driver registration)
-        station_id: profileData.stationId,
-        station_name: profileData.stationName,
-        business_license: profileData.businessLicense,
-        // Admin fields (shouldn't be set during driver registration)
-        employee_id: profileData.employeeId,
-        department: profileData.department,
-      });
+      const userId = authData.user.id;
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        
-        // Note: Can't delete auth user with anon key
-        // The auth user will remain but without a profile
-        // Admin will need to clean up manually if needed
-        
-        toast.error('Profile creation failed', {
-          description: profileError.message || 'Please try again',
+      // Wait for the trigger to create the base user record (max 5 seconds)
+      let retries = 0;
+      const maxRetries = 5;
+      let userExists = false;
+
+      while (retries < maxRetries && !userExists) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(1.5, retries))); // 1s, 1.5s, 2.25s, ...
+        const { data: existing } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+        if (existing) {
+          userExists = true;
+          break;
+        }
+        retries++;
+      }
+
+      if (!userExists) {
+        console.error('User profile not created by trigger after waiting.');
+        toast.error('Registration failed', {
+          description: 'Could not create user profile. Please try again.',
         });
+        // Optionally, try to delete the auth user? Not possible with anon key.
         return false;
       }
 
-      // Fetch the created profile
+      // Update the user record with additional fields (driver-specific)
+      const updateData: any = {};
+      if (profileData.fullName) updateData.full_name = profileData.fullName;
+      if (profileData.phone) updateData.phone = profileData.phone;
+      if (profileData.address) updateData.address = profileData.address;
+      if (profileData.vehicleModel) updateData.vehicle_model = profileData.vehicleModel;
+      if (profileData.plateNumber) updateData.plate_number = profileData.plateNumber.toUpperCase();
+      if (profileData.preferredFuelType) updateData.preferred_fuel_type = profileData.preferredFuelType;
+      if (profileData.licenseNumber) updateData.license_number = profileData.licenseNumber;
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Profile update error:', updateError);
+          toast.error('Profile update failed', {
+            description: updateError.message || 'Please try again',
+          });
+          // The user is created but incomplete. Continue, but show warning.
+        }
+      }
+
+      // Fetch the complete profile
       const profile = await fetchUserProfile(authData.user);
       
       if (profile) {
@@ -310,8 +334,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.plateNumber !== undefined) dbData.plate_number = data.plateNumber?.toUpperCase();
       if (data.preferredFuelType !== undefined) dbData.preferred_fuel_type = data.preferredFuelType;
       if (data.licenseNumber !== undefined) dbData.license_number = data.licenseNumber?.toUpperCase();
-      if (data.stationName !== undefined) dbData.station_name = data.stationName;
-      if (data.businessLicense !== undefined) dbData.business_license = data.businessLicense;
+      if (data.stationId !== undefined) dbData.station_id = data.stationId;          // for operator
+      if (data.businessLicense !== undefined) dbData.business_license_number = data.businessLicense;
       if (data.department !== undefined) dbData.department = data.department;
 
       const { error } = await supabase

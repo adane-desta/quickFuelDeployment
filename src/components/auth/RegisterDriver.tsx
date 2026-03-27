@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail, validatePlateNumber } from '../../lib/supabase/config';
-import { notifications, notifyError, notifyWarning } from '../../lib/utils/notifications';
+import { notifyError, notifyWarning } from '../../lib/utils/notifications';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -11,7 +11,7 @@ import { User, Mail, Phone, Lock, MapPin, Car, FileText } from 'lucide-react';
 
 export function RegisterDriver() {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { register } = useAuth();   // changed from signUp
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -92,15 +92,17 @@ export function RegisterDriver() {
 
     setLoading(true);
     try {
-      const success = await signUp(formData.email, formData.password, {
-        full_name: formData.full_name,
+      const success = await register({
+        email: formData.email,
+        password: formData.password,
+        fullName: formData.full_name,
         phone: formatEthiopianPhone(formData.phone),
         role: 'driver',
         address: formData.address,
-        vehicle_model: formData.vehicle_model,
-        plate_number: formData.plate_number.toUpperCase(),
-        license_number: formData.license_number,
-        preferred_fuel_type: formData.preferred_fuel_type,
+        vehicleModel: formData.vehicle_model,
+        plateNumber: formData.plate_number.toUpperCase(),
+        licenseNumber: formData.license_number,
+        preferredFuelType: formData.preferred_fuel_type,
       });
 
       if (success) {
