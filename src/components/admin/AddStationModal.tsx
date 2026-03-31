@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock, Calendar, Check, AlertCircle, Sun, Moon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock, Calendar, AlertCircle, Fuel, Droplet } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -20,6 +20,9 @@ const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalProps) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [fuelTypes, setFuelTypes] = useState<any[]>([]);
+  const [loadingFuelTypes, setLoadingFuelTypes] = useState(true);
+
   const [formData, setFormData] = useState({
     // Station Details
     stationName: '',
@@ -37,16 +40,46 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     openingTime: '06:00',
     closingTime: '22:00',
     is24Hours: false,
-    operatingDays: WEEKDAYS, // default all days
+    operatingDays: WEEKDAYS,
     
     // Owner Details
     ownerName: '',
     ownerEmail: '',
     ownerPhone: '',
-    ownerBusinessLicense: '', // owner's personal business license (optional)
+    ownerBusinessLicense: '',
+    
+    // Fuel Inventory (dynamic, keyed by fuel_type_id)
+    fuelStock: {} as Record<string, number>,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      loadFuelTypes();
+    }
+  }, [isOpen]);
+
+  const loadFuelTypes = async () => {
+    setLoadingFuelTypes(true);
+    try {
+      const { data, error } = await supabase
+        .from('fuel_types')
+        .select('id, name, code')
+        .eq('is_active', true);
+      if (error) throw error;
+      setFuelTypes(data || []);
+      // Initialize stock object with default 0 for each fuel type
+      const initialStock: Record<string, number> = {};
+      (data || []).forEach(ft => { initialStock[ft.id] = 0; });
+      setFormData(prev => ({ ...prev, fuelStock: initialStock }));
+    } catch (error) {
+      console.error('Error loading fuel types:', error);
+      toast.error('Failed to load fuel types');
+    } finally {
+      setLoadingFuelTypes(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -89,7 +122,6 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     } else if (!validateEthiopianPhone(formData.ownerPhone)) {
       newErrors.ownerPhone = 'Invalid Ethiopian phone number';
     }
-
     if (!formData.ownerBusinessLicense.trim()) {
       newErrors.ownerBusinessLicense = 'Owner business license is required';
     }
@@ -98,11 +130,24 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (step === 1 && validateStep1()) setStep(2);
+  const validateStep3 = () => {
+    // At least one fuel type must have positive stock? Not mandatory – station can start with zero.
+    // We'll just ensure numbers are valid.
+    for (const [id, stock] of Object.entries(formData.fuelStock)) {
+      if (isNaN(stock) || stock < 0) {
+        toast.error(`Invalid stock value for ${fuelTypes.find(ft => ft.id === id)?.name}`);
+        return false;
+      }
+    }
+    return true;
   };
 
-  const handleBack = () => setStep(1);
+  const handleNext = () => {
+    if (step === 1 && validateStep1()) setStep(2);
+    else if (step === 2 && validateStep2()) setStep(3);
+  };
+
+  const handleBack = () => setStep(step - 1);
 
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -115,9 +160,9 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateStep2()) return;
+    if (!validateStep3()) return;
     setLoading(true);
-  
+
     try {
       // 1. Ensure the current user is an admin
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -134,83 +179,49 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         toast.error('Admin privileges required');
         return;
       }
-  
+
       const tempPassword = generateRandomPassword();
-      const formattedPhone = formatEthiopianPhone(formData.ownerPhone);
-  
-      // 2. Create the auth user
+      const formattedOwnerPhone = formatEthiopianPhone(formData.ownerPhone);
+
+      // 2. Create the auth user for station owner
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.ownerEmail,
         password: tempPassword,
         options: {
           data: {
             full_name: formData.ownerName,
-            phone: formattedPhone,
+            phone: formattedOwnerPhone,
             role: 'station_owner',
             business_license_number: formData.ownerBusinessLicense,
           },
           emailRedirectTo: undefined,
         },
       });
-  
+
       if (authError) throw new Error(`Failed to create owner account: ${authError.message}`);
       if (!authData.user) throw new Error('No user data returned');
-  
+
       const ownerId = authData.user.id;
-  
-      // 3. Poll for the public.users record (created by the trigger)
-      const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-      let retries = 0;
-      const maxRetries = 8;   // total wait up to ~255 seconds (4 minutes) if needed
-      let userFound = false;
-  
-      while (retries < maxRetries && !userFound) {
-        await wait(1000 * Math.pow(1.5, retries)); // 1.5s, 2.2s, 3.4s, 5.1s, ...
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', ownerId)
-          .maybeSingle();
-  
-        if (existingUser) {
-          userFound = true;
-          break;
-        }
-        console.log(`Attempt ${retries + 1}: user record not yet found, waiting...`);
-        retries++;
-      }
-  
-      if (!userFound) {
-        // If the trigger never inserted, we try a final manual insert with a longer wait
-        console.warn('User record not found after polling. Attempting final manual insert...');
-        const { error: finalInsertError } = await supabase
-          .from('users')
-          .upsert({
-            id: ownerId,
-            email: formData.ownerEmail,
-            full_name: formData.ownerName,
-            phone: formattedPhone,
-            role: 'station_owner',
-            business_license_number: formData.ownerBusinessLicense,
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' });
-  
-        if (finalInsertError) {
-          throw new Error('User record could not be created. Please check that the trigger on auth.users is active.');
-        }
-      }
-  
-      // 4. Update the business license (if needed)
-      const { error: updateError } = await supabase
+
+      // 3. Wait for trigger to create base user record (or insert manually)
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const { error: upsertError } = await supabase
         .from('users')
-        .update({ business_license_number: formData.ownerBusinessLicense })
-        .eq('id', ownerId);
-  
-      if (updateError) console.warn('Could not update business license:', updateError);
-  
-      // 5. Create the station
+        .upsert({
+          id: ownerId,
+          email: formData.ownerEmail,
+          full_name: formData.ownerName,
+          phone: formattedOwnerPhone,
+          role: 'station_owner',
+          business_license_number: formData.ownerBusinessLicense,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (upsertError) throw new Error('Failed to create owner profile');
+
+      // 4. Create the station
       const stationData = {
         name: formData.stationName,
         address: formData.address,
@@ -229,40 +240,55 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         closing_time: formData.is24Hours ? '23:59' : formData.closingTime,
         is_24_hours: formData.is24Hours,
         operating_days: formData.operatingDays,
-        is_verified: false,
+        is_verified: true,   // Admin-created stations can be auto-verified
         is_active: true,
       };
-  
-      const { error: stationError } = await supabase
+
+      const { data: station, error: stationError } = await supabase
         .from('stations')
         .insert(stationData)
         .select()
         .single();
-  
+
       if (stationError) throw new Error(`Failed to create station: ${stationError.message}`);
-  
-      // 6. Log activity (using correct columns for version 2)
-      const { error: activityError } = await supabase
-        .from('system_activity')
-        .insert({
-          user_id: currentUser.id,
-          user_role: 'admin',
-          action: 'STATION_CREATED',
-          description: `New station registered: ${formData.stationName}`,
-          category: 'station',
-          metadata: { stationName: formData.stationName, ownerEmail: formData.ownerEmail },
-          success: true,
-        });
-  
-      if (activityError) {
-        console.error('Failed to log activity:', activityError);
+
+      // 5. Insert fuel inventory for each fuel type
+      const inventoryInserts = fuelTypes.map(ft => ({
+        station_id: station.id,
+        fuel_type_id: ft.id,
+        current_stock: formData.fuelStock[ft.id] || 0,
+        minimum_stock_threshold: 500,   // default 500L
+        maximum_capacity: 10000,        // default 10,000L
+        is_available: (formData.fuelStock[ft.id] || 0) > 500,
+      }));
+
+      const { error: inventoryError } = await supabase
+        .from('station_fuel_inventory')
+        .insert(inventoryInserts);
+
+      if (inventoryError) {
+        console.error('Failed to insert inventory:', inventoryError);
+        toast.error('Station created but inventory setup failed. Please add fuel manually.');
+      } else {
+        toast.success('Fuel inventory initialized');
       }
-  
+
+      // 6. Log activity
+      await supabase.from('system_activity').insert({
+        user_id: currentUser.id,
+        user_role: 'admin',
+        action: 'STATION_CREATED',
+        description: `New station registered: ${formData.stationName}`,
+        category: 'station',
+        metadata: { stationName: formData.stationName, ownerEmail: formData.ownerEmail },
+        success: true,
+      });
+
       toast.success('Station registered successfully!', {
-        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}\n\nCredentials have been sent to the owner's email.`,
+        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}\n\nInventory has been set up.`,
         duration: 10000,
       });
-  
+
       onSuccess();
       onClose();
       resetForm();
@@ -298,14 +324,24 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
       ownerEmail: '',
       ownerPhone: '',
       ownerBusinessLicense: '',
+      fuelStock: {},
     });
     setStep(1);
     setErrors({});
+    loadFuelTypes(); // reload to reset stock object
   };
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handleFuelStockChange = (fuelTypeId: string, value: string) => {
+    const num = parseInt(value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      fuelStock: { ...prev.fuelStock, [fuelTypeId]: num }
+    }));
   };
 
   const toggleDay = (day: string) => {
@@ -326,7 +362,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Add New Station</h2>
-              <p className="text-sm text-purple-100">Step {step} of 2</p>
+              <p className="text-sm text-purple-100">Step {step} of 3</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors" disabled={loading}>
@@ -336,7 +372,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
-          <div className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-300" style={{ width: `${(step / 2) * 100}%` }} />
+          <div className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
         </div>
 
         {/* Content */}
@@ -484,13 +520,8 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
                     onChange={e => handleChange('fireSafetyCertificate', e.target.value)} placeholder="Optional" />
                 </div>
               </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                <AlertCircle className="w-4 h-4 inline mr-1" />
-                Fuel inventory (initial stock) can be set later by the station owner.
-              </div>
             </div>
-          ) : (
+          ) : step === 2 ? (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Owner Details</h3>
 
@@ -528,11 +559,8 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
                 <Input id="ownerBusinessLicense" value={formData.ownerBusinessLicense}
                   onChange={e => handleChange('ownerBusinessLicense', e.target.value)}
                   placeholder="e.g., BL-2024-XXXX" 
-                  className={errors.ownerBusinessLicense ? 'border-red-500' : ''}
-                  />
-                  {errors.ownerBusinessLicense && (
-    <p className="text-sm text-red-600 mt-1">{errors.ownerBusinessLicense}</p>
-  )}
+                  className={errors.ownerBusinessLicense ? 'border-red-500' : ''} />
+                {errors.ownerBusinessLicense && <p className="text-sm text-red-600 mt-1">{errors.ownerBusinessLicense}</p>}
                 <p className="text-xs text-gray-500 mt-1">Will be stored in owner's profile</p>
               </div>
 
@@ -543,13 +571,51 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
                 </p>
               </div>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Initial Fuel Inventory</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Set the starting stock for each fuel type. Minimum stock threshold will be set to 500L, maximum capacity to 10,000L by default.
+              </p>
+              {loadingFuelTypes ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+              ) : (
+                <div className="space-y-4">
+                  {fuelTypes.map(ft => (
+                    <div key={ft.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Fuel className="w-5 h-5 text-blue-600" />
+                        <Label className="font-semibold">{ft.name} ({ft.code})</Label>
+                      </div>
+                      <div>
+                        <Label htmlFor={`stock-${ft.id}`}>Initial Stock (Liters)</Label>
+                        <Input
+                          id={`stock-${ft.id}`}
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={formData.fuelStock[ft.id] || 0}
+                          onChange={e => handleFuelStockChange(ft.id, e.target.value)}
+                          placeholder="e.g., 5000"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Leave 0 if not available initially.</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <AlertCircle className="w-4 h-4 inline mr-1" />
+                Stock can be adjusted later by the station owner via fuel deliveries.
+              </div>
+            </div>
           )}
         </form>
 
         {/* Footer */}
         <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50">
           <div className="flex gap-3">
-            {step === 2 && (
+            {step > 1 && (
               <Button type="button" onClick={handleBack} variant="outline" disabled={loading}>
                 Back
               </Button>
@@ -561,7 +627,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
               Cancel
             </Button>
 
-            {step === 1 ? (
+            {step < 3 ? (
               <Button type="button" onClick={handleNext} className="bg-gradient-to-r from-purple-600 to-blue-600">
                 Next
               </Button>

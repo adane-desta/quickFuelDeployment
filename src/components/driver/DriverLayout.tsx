@@ -75,11 +75,50 @@ export function DriverLayout() {
   const loadStations = async () => {
     setLoadingStations(true);
     try {
-      const allStations = await db.stations.getAll(); // returns raw station objects
-      // Compute distance for each station if userLocation is available
-      let stationsWithDistance = allStations;
+      // 1. Fetch all stations
+      const allStations = await db.stations.getAll();
+  
+      // 2. Fetch inventory for these stations
+      const { data: inventoryData, error: invError } = await supabase
+        .from('station_fuel_inventory')
+        .select(`
+          station_id,
+          is_available,
+          fuel_type:fuel_type_id (name)
+        `)
+        .in('station_id', allStations.map(s => s.id));
+  
+      if (invError) throw invError;
+  
+      // Build a map of station_id -> availability flags
+      const stationAvailability: Record<string, { petrolAvailable: boolean; dieselAvailable: boolean }> = {};
+      (inventoryData || []).forEach(item => {
+        const stationId = item.station_id;
+        const fuelName = item.fuel_type?.name;
+        if (!stationAvailability[stationId]) {
+          stationAvailability[stationId] = { petrolAvailable: false, dieselAvailable: false };
+        }
+        if (fuelName === 'Petrol' && item.is_available) {
+          stationAvailability[stationId].petrolAvailable = true;
+        } else if (fuelName === 'Diesel' && item.is_available) {
+          stationAvailability[stationId].dieselAvailable = true;
+        }
+      });
+  
+      // 3. Enrich stations with availability and compute distance
+      let stationsWithDistance = allStations.map(station => {
+        const avail = stationAvailability[station.id] || { petrolAvailable: false, dieselAvailable: false };
+        return {
+          ...station,
+          ...avail,
+          queueLength: 'Short' as const,   // default value; can be extended later
+          distance: 0,                      // will be recalculated if location available
+        };
+      });
+  
+      // 4. Compute distance if userLocation is available
       if (userLocation) {
-        stationsWithDistance = allStations.map(station => ({
+        stationsWithDistance = stationsWithDistance.map(station => ({
           ...station,
           distance: getDistanceFromLatLonInKm(
             userLocation.lat,
@@ -87,22 +126,9 @@ export function DriverLayout() {
             station.latitude,
             station.longitude
           ),
-          // Since version 2 stations don't have queueLength, set a default
-          queueLength: 'Short' as const,
-          // Map availability from station_fuel_inventory later? For now, assume true if stock > 0
-          // We'll keep a simple flag (if station has any fuel type with stock)
-          petrolAvailable: station.petrol_available, // keep for compatibility; in version 2 these columns may exist? Actually stations table doesn't have these. We'll use inventory to determine later.
-          dieselAvailable: station.diesel_available,
-        } as Station));
-      } else {
-        stationsWithDistance = allStations.map(station => ({
-          ...station,
-          distance: 0,
-          queueLength: 'Short',
-          petrolAvailable: false,
-          dieselAvailable: false,
-        } as Station));
+        }));
       }
+  
       setStations(stationsWithDistance);
     } catch (error) {
       console.error('Error loading stations:', error);
