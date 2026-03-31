@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchBar } from '../SearchBar';
@@ -11,7 +11,7 @@ import { DriverReservationsScreen } from './DriverReservationsScreen';
 import { DriverNotificationsScreen } from './DriverNotificationsScreen';
 import { DriverProfileScreen } from './DriverProfileScreen';
 import { ReportQueueModal } from './ReportQueueModal';
-import { Bell, Home, Calendar, User, Fuel, MapPin, LogOut, Heart, Settings, Menu, X } from 'lucide-react';
+import { Bell, Home, Calendar, User, Fuel, LogOut, Menu, X } from 'lucide-react';
 import { Station } from '../../types';
 import { db } from '../../lib/supabase/services';
 import { supabase } from '../../lib/supabase/client';
@@ -19,7 +19,7 @@ import { notifyError } from '../../lib/utils/notifications';
 
 // Helper to calculate distance between two coordinates (in km)
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371; // Earth radius in km
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -27,8 +27,7 @@ const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
+  return R * c;
 };
 
 const deg2rad = (deg: number) => deg * (Math.PI / 180);
@@ -59,8 +58,7 @@ export function DriverLayout() {
         },
         (error) => {
           console.warn('Geolocation error:', error);
-          // Fallback: use Addis Ababa coordinates
-          setUserLocation({ lat: 9.0192, lng: 38.7525 });
+          setUserLocation({ lat: 9.0192, lng: 38.7525 }); // Fallback: Addis Ababa
         }
       );
     } else {
@@ -70,14 +68,14 @@ export function DriverLayout() {
 
   useEffect(() => {
     loadStations();
-  }, []);
+  }, [userLocation]);
 
   const loadStations = async () => {
     setLoadingStations(true);
     try {
       // 1. Fetch all stations
       const allStations = await db.stations.getAll();
-  
+
       // 2. Fetch inventory for these stations
       const { data: inventoryData, error: invError } = await supabase
         .from('station_fuel_inventory')
@@ -87,35 +85,28 @@ export function DriverLayout() {
           fuel_type:fuel_type_id (name)
         `)
         .in('station_id', allStations.map(s => s.id));
-  
+
       if (invError) throw invError;
-  
-      // Build a map of station_id -> availability flags
-      const stationAvailability: Record<string, { petrolAvailable: boolean; dieselAvailable: boolean }> = {};
+
+      // Build a map of station_id -> available fuel names
+      const stationAvailableFuels: Record<string, string[]> = {};
       (inventoryData || []).forEach(item => {
         const stationId = item.station_id;
         const fuelName = item.fuel_type?.name;
-        if (!stationAvailability[stationId]) {
-          stationAvailability[stationId] = { petrolAvailable: false, dieselAvailable: false };
-        }
-        if (fuelName === 'Petrol' && item.is_available) {
-          stationAvailability[stationId].petrolAvailable = true;
-        } else if (fuelName === 'Diesel' && item.is_available) {
-          stationAvailability[stationId].dieselAvailable = true;
+        if (item.is_available && fuelName) {
+          if (!stationAvailableFuels[stationId]) stationAvailableFuels[stationId] = [];
+          stationAvailableFuels[stationId].push(fuelName);
         }
       });
-  
-      // 3. Enrich stations with availability and compute distance
-      let stationsWithDistance = allStations.map(station => {
-        const avail = stationAvailability[station.id] || { petrolAvailable: false, dieselAvailable: false };
-        return {
-          ...station,
-          ...avail,
-          queueLength: 'Short' as const,   // default value; can be extended later
-          distance: 0,                      // will be recalculated if location available
-        };
-      });
-  
+
+      // 3. Enrich stations with available fuels and compute distance
+      let stationsWithDistance = allStations.map(station => ({
+        ...station,
+        availableFuels: stationAvailableFuels[station.id] || [],
+        queueLength: 'Short' as const,
+        distance: 0,
+      }));
+
       // 4. Compute distance if userLocation is available
       if (userLocation) {
         stationsWithDistance = stationsWithDistance.map(station => ({
@@ -128,7 +119,7 @@ export function DriverLayout() {
           ),
         }));
       }
-  
+
       setStations(stationsWithDistance);
     } catch (error) {
       console.error('Error loading stations:', error);
@@ -139,7 +130,7 @@ export function DriverLayout() {
   };
 
   const handleRefresh = () => {
-    loadStations(); // reload stations (already with fresh data)
+    loadStations();
   };
 
   const filteredStations = stations.filter(station => {
@@ -147,8 +138,7 @@ export function DriverLayout() {
     return (
       station.name.toLowerCase().includes(query) ||
       (station.address || '').toLowerCase().includes(query) ||
-      (query.includes('petrol') && station.petrolAvailable) ||
-      (query.includes('diesel') && station.dieselAvailable)
+      station.availableFuels.some(fuel => fuel.toLowerCase().includes(query))
     );
   });
 
@@ -169,7 +159,6 @@ export function DriverLayout() {
       case 'home':
         return (
           <>
-            {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 lg:px-6 py-4 shadow-md">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -196,11 +185,9 @@ export function DriverLayout() {
                   )}
                 </button>
               </div>
-
               <SearchBar value={searchQuery} onChange={setSearchQuery} />
             </div>
 
-            {/* Quick Actions */}
             <QuickActions
               viewMode={viewMode}
               onViewModeChange={setViewMode}
@@ -208,7 +195,6 @@ export function DriverLayout() {
               onReportQueue={() => setShowReportQueue(true)}
             />
 
-            {/* Main Content */}
             <div className="flex-1 overflow-hidden">
               {loadingStations ? (
                 <div className="flex items-center justify-center h-full">
@@ -370,19 +356,15 @@ export function DriverLayout() {
         </div>
       )}
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex flex-col overflow-hidden">
           {renderContent()}
         </div>
-
-        {/* Bottom Navigation - Mobile Only */}
         <div className="lg:hidden">
           <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       </div>
 
-      {/* Reservation Flow Modal */}
       {selectedStationForReservation && (
         <ReservationFlow
           station={selectedStationForReservation}
@@ -390,7 +372,6 @@ export function DriverLayout() {
         />
       )}
 
-      {/* Report Queue Modal */}
       {showReportQueue && (
         <ReportQueueModal
           stations={stations}
