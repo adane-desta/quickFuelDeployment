@@ -147,6 +147,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
             full_name: formData.ownerName,
             phone: formattedPhone,
             role: 'station_owner',
+            business_license_number: formData.ownerBusinessLicense,
           },
           emailRedirectTo: undefined,
         },

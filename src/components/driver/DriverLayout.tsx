@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchBar } from '../SearchBar';
@@ -12,29 +12,108 @@ import { DriverNotificationsScreen } from './DriverNotificationsScreen';
 import { DriverProfileScreen } from './DriverProfileScreen';
 import { ReportQueueModal } from './ReportQueueModal';
 import { Bell, Home, Calendar, User, Fuel, MapPin, LogOut, Heart, Settings, Menu, X } from 'lucide-react';
-import { mockStations } from '../../data/mockData';
 import { Station } from '../../types';
+import { db } from '../../lib/supabase/services';
+import { supabase } from '../../lib/supabase/client';
+import { notifyError } from '../../lib/utils/notifications';
+
+// Helper to calculate distance between two coordinates (in km)
+const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+};
+
+const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
 export function DriverLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [stations, setStations] = useState<Station[]>(mockStations);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loadingStations, setLoadingStations] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [notificationCount] = useState(2);
   const [selectedStationForReservation, setSelectedStationForReservation] = useState<Station | null>(null);
   const [showReportQueue, setShowReportQueue] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
+  useEffect(() => {
+    // Get user location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn('Geolocation error:', error);
+          // Fallback: use Addis Ababa coordinates
+          setUserLocation({ lat: 9.0192, lng: 38.7525 });
+        }
+      );
+    } else {
+      setUserLocation({ lat: 9.0192, lng: 38.7525 });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStations();
+  }, []);
+
+  const loadStations = async () => {
+    setLoadingStations(true);
+    try {
+      const allStations = await db.stations.getAll(); // returns raw station objects
+      // Compute distance for each station if userLocation is available
+      let stationsWithDistance = allStations;
+      if (userLocation) {
+        stationsWithDistance = allStations.map(station => ({
+          ...station,
+          distance: getDistanceFromLatLonInKm(
+            userLocation.lat,
+            userLocation.lng,
+            station.latitude,
+            station.longitude
+          ),
+          // Since version 2 stations don't have queueLength, set a default
+          queueLength: 'Short' as const,
+          // Map availability from station_fuel_inventory later? For now, assume true if stock > 0
+          // We'll keep a simple flag (if station has any fuel type with stock)
+          petrolAvailable: station.petrol_available, // keep for compatibility; in version 2 these columns may exist? Actually stations table doesn't have these. We'll use inventory to determine later.
+          dieselAvailable: station.diesel_available,
+        } as Station));
+      } else {
+        stationsWithDistance = allStations.map(station => ({
+          ...station,
+          distance: 0,
+          queueLength: 'Short',
+          petrolAvailable: false,
+          dieselAvailable: false,
+        } as Station));
+      }
+      setStations(stationsWithDistance);
+    } catch (error) {
+      console.error('Error loading stations:', error);
+      notifyError('Failed to load stations');
+    } finally {
+      setLoadingStations(false);
+    }
+  };
 
   const handleRefresh = () => {
-    const shuffled = [...mockStations].sort(() => Math.random() - 0.5);
-    setStations(shuffled);
+    loadStations(); // reload stations (already with fresh data)
   };
 
   const filteredStations = stations.filter(station => {
@@ -76,7 +155,7 @@ export function DriverLayout() {
                   </button>
                   <div>
                     <h1 className="text-white">QuickFuel</h1>
-                    <p className="text-blue-100 text-sm">Welcome, {user.fullName?.split(' ')[0]}</p>
+                    <p className="text-blue-100 text-sm">Welcome, {user?.full_name?.split(' ')[0] || 'Driver'}</p>
                   </div>
                 </div>
                 <button
@@ -105,7 +184,11 @@ export function DriverLayout() {
 
             {/* Main Content */}
             <div className="flex-1 overflow-hidden">
-              {viewMode === 'list' ? (
+              {loadingStations ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                </div>
+              ) : viewMode === 'list' ? (
                 <ListView
                   stations={filteredStations}
                   onReserve={setSelectedStationForReservation}
@@ -152,8 +235,8 @@ export function DriverLayout() {
               <User className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-900 truncate">{user.fullName}</p>
-              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <p className="text-sm text-gray-900 truncate">{user?.full_name || 'Driver'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
           </div>
         </div>
@@ -218,7 +301,7 @@ export function DriverLayout() {
                   <User className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-900">{user.fullName}</p>
+                  <p className="text-sm text-gray-900">{user?.full_name}</p>
                   <p className="text-xs text-gray-500">Driver</p>
                 </div>
               </div>
@@ -284,7 +367,7 @@ export function DriverLayout() {
       {/* Report Queue Modal */}
       {showReportQueue && (
         <ReportQueueModal
-          stations={mockStations}
+          stations={stations}
           onClose={() => setShowReportQueue(false)}
         />
       )}

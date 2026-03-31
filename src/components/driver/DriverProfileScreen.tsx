@@ -16,7 +16,7 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [editData, setEditData] = useState({
-    fullName: user?.fullName || '',
+    fullName: user?.full_name || '',
     email: user?.email || '',
     phone: user?.phone || '',
     address: user?.address || '',
