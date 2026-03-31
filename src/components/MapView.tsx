@@ -1,130 +1,94 @@
-import { Station } from '../types';
-import { MapPin } from 'lucide-react';
-import { useState } from 'react';
-import { StationCard } from './StationCard';
+import { MapPin, Fuel, Clock, Users } from 'lucide-react';
+import { Station } from '../../types';
 
 interface MapViewProps {
   stations: Station[];
-  onReserve?: (station: Station) => void;
+  onReserve: (station: Station) => void;
 }
 
 export function MapView({ stations, onReserve }: MapViewProps) {
-  const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  // This is a simplified version; in a real app you would embed a map library.
+  // For now, we just show the list again (same as ListView) but with map‑like styling.
+  const getQueueColor = (queue: string) => {
+    switch (queue) {
+      case 'Short': return 'bg-green-100 text-green-700';
+      case 'Medium': return 'bg-yellow-100 text-yellow-700';
+      case 'Long': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
-  const getMarkerColor = (queueLength: string) => {
-    switch (queueLength) {
-      case 'Short':
-        return 'text-green-600';
-      case 'Medium':
-        return 'text-yellow-600';
-      case 'Long':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
+  const getWaitTime = (queue: string) => {
+    switch (queue) {
+      case 'Short': return '5-10 min';
+      case 'Medium': return '15-30 min';
+      case 'Long': return '30+ min';
+      default: return '~ min';
     }
   };
 
   return (
-    <div className="h-full relative">
-      {/* Map Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50">
-        {/* Grid pattern to simulate map */}
-        <div className="absolute inset-0 opacity-20">
-          <svg width="100%" height="100%">
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="gray" strokeWidth="0.5" />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
+    <div className="h-full bg-gray-100 relative">
+      <div className="absolute inset-0 bg-blue-50 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <MapPin className="w-12 h-12 mx-auto mb-2 text-blue-400" />
+          <p>Map view would be integrated with a mapping library (e.g., Leaflet, Google Maps).</p>
+          <p>For now, stations are shown as a list:</p>
         </div>
-
-        {/* Road lines */}
-        <svg className="absolute inset-0 w-full h-full">
-          <line x1="0" y1="30%" x2="100%" y2="30%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="0" y1="60%" x2="100%" y2="60%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="30%" y1="0" x2="30%" y2="100%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="70%" y1="0" x2="70%" y2="100%" stroke="#cbd5e0" strokeWidth="3" />
-        </svg>
-
-        {/* Station Markers */}
-        <div className="absolute inset-0 p-4">
-          {stations.map((station, index) => {
-            // Position stations in a grid-like pattern
-            const positions = [
-              { top: '15%', left: '25%' },
-              { top: '25%', left: '60%' },
-              { top: '40%', left: '35%' },
-              { top: '55%', left: '70%' },
-              { top: '70%', left: '20%' },
-              { top: '75%', left: '55%' },
-            ];
-            const position = positions[index % positions.length];
-
-            return (
-              <button
-                key={station.id}
-                onClick={() => setSelectedStation(station)}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-transform hover:scale-110"
-                style={{ top: position.top, left: position.left }}
-              >
-                <div className="relative">
-                  <MapPin className={`w-10 h-10 drop-shadow-lg ${getMarkerColor(station.queueLength)}`} fill="currentColor" />
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white px-2 py-0.5 rounded shadow-sm text-xs">
-                    {station.distance} km
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 max-h-[70%] overflow-y-auto bg-white rounded-t-xl shadow-lg">
+        <div className="divide-y divide-gray-200">
+          {stations.map(station => (
+            <div key={station.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-gray-900">{station.name}</h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                    <MapPin className="w-4 h-4" />
+                    <span>{station.address || 'Address not available'}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>{station.distance.toFixed(1)} km away</span>
+                    </div>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getQueueColor(station.queueLength)}`}>
+                      <Users className="w-3 h-3" />
+                      <span>{station.queueLength}</span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Wait: {getWaitTime(station.queueLength)}
+                    </div>
                   </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* User Location Marker */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 bg-blue-600 rounded-full border-4 border-white shadow-lg animate-pulse"></div>
-        </div>
-      </div>
-
-      {/* Selected Station Card */}
-      {selectedStation && (
-        <div className="absolute bottom-4 left-4 right-4 animate-in slide-in-from-bottom">
-          <div className="relative">
-            <button
-              onClick={() => setSelectedStation(null)}
-              className="absolute -top-2 -right-2 w-8 h-8 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors z-10 flex items-center justify-center"
-            >
-              ×
-            </button>
-            <StationCard station={selectedStation} onReserve={onReserve} />
-          </div>
-        </div>
-      )}
-
-      {/* Map Controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <button className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors">
-          +
-        </button>
-        <button className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors">
-          −
-        </button>
-      </div>
-
-      {/* Legend */}
-      <div className="absolute top-4 left-4 bg-white rounded-lg shadow-md p-3">
-        <p className="text-xs text-gray-500 mb-2">Queue Status</p>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-green-600" fill="currentColor" />
-            <span className="text-xs">Short</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-yellow-600" fill="currentColor" />
-            <span className="text-xs">Medium</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-red-600" fill="currentColor" />
-            <span className="text-xs">Long</span>
-          </div>
+                <div className="text-right">
+                  <div className="flex flex-wrap gap-1 justify-end mb-2">
+                    {station.availableFuels?.map(fuel => (
+                      <span key={fuel} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {fuel}
+                      </span>
+                    ))}
+                    {(!station.availableFuels || station.availableFuels.length === 0) && (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
+                        None
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onReserve(station)}
+                    disabled={!station.availableFuels?.length}
+                    className={`px-3 py-1.5 rounded-lg text-sm ${
+                      station.availableFuels?.length
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Reserve Fuel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
