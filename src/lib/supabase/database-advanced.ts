@@ -383,8 +383,8 @@ export const reservationService = {
    */
   async confirmPayment(reservationId: string, transactionId: string): Promise<boolean> {
     try {
-      // Update reservation
-      await supabase
+      // Update reservation status to confirmed and paid
+      const { error: resError } = await supabase
         .from('reservations')
         .update({
           status: 'confirmed',
@@ -392,24 +392,28 @@ export const reservationService = {
           confirmed_at: new Date().toISOString(),
         })
         .eq('id', reservationId);
-
-      // Update transaction
-      await supabase
+  
+      if (resError) throw resError;
+  
+      // Update the payment transaction
+      const { error: txError } = await supabase
         .from('payment_transactions')
         .update({
           status: 'success',
+          gateway_transaction_id: transactionId,
           completed_at: new Date().toISOString(),
         })
         .eq('reservation_id', reservationId);
-
+  
+      if (txError) throw txError;
+  
       return true;
     } catch (error) {
-      logError('confirmPayment', error);
+      console.error('confirmPayment error:', error);
       notifyError('Failed to confirm payment', error);
       return false;
     }
-  },
-};
+  }
 
 // =====================================================
 // FUEL DELIVERY SERVICES
