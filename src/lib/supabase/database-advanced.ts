@@ -120,34 +120,34 @@ export const reservationService = {
    */
   async createReservation(reservationData: CreateReservationFormData, driverId: string): Promise<string | null> {
     try {
-      // Get slot and fuel details
+      // Get slot details
       const slot = await timeSlotService.getSlotById(reservationData.time_slot_id);
       if (!slot) throw new Error('Invalid time slot');
-
-      // Get fuel price
+  
+      // Get fuel inventory and price
       const { data: inventory, error: invError } = await supabase
         .from('station_fuel_inventory')
         .select(`
           *,
-          fuel_type:fuel_types(base_price_per_liter)
+          fuel_type:fuel_types (base_price_per_liter)
         `)
         .eq('station_id', reservationData.station_id)
         .eq('fuel_type_id', reservationData.fuel_type_id)
         .single();
-
+  
       if (invError || !inventory) throw new Error('Fuel type not available');
-
+  
       const pricePerLiter = inventory.custom_price_per_liter || inventory.fuel_type.base_price_per_liter;
       const totalPrice = pricePerLiter * reservationData.quantity;
-
+  
       // Generate pickup code
       const pickupCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-      // Calculate expiration
+  
+      // Calculate expiration (slot end time + 15 minutes)
       const expiresAt = new Date(`${slot.slot_date}T${slot.end_time}`);
-      expiresAt.setMinutes(expiresAt.getMinutes() + 15); // Add 15 min grace period
-
-      // Create reservation
+      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+  
+      // Insert reservation
       const { data, error } = await supabase
         .from('reservations')
         .insert({
@@ -167,10 +167,10 @@ export const reservationService = {
         })
         .select()
         .single();
-
+  
       if (error) throw error;
-
-      // Create payment transaction
+  
+      // Create payment transaction record
       await supabase.from('payment_transactions').insert({
         reservation_id: data.id,
         amount: totalPrice,
@@ -178,14 +178,14 @@ export const reservationService = {
         transaction_reference: `TXN-${Date.now()}-${pickupCode}`,
         status: 'pending',
       });
-
+  
       return data.id;
     } catch (error) {
-      logError('createReservation', error);
+      console.error('createReservation error:', error);
       notifyError('Failed to create reservation', error);
       return null;
     }
-  },
+  }
 
   /**
    * Get driver's reservations
