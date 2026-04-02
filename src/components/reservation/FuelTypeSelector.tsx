@@ -1,13 +1,20 @@
+// =====================================================
+// FUEL TYPE SELECTOR - DRIVER COMPONENT
+// =====================================================
+// Select fuel type with real-time pricing from database
+// Shows availability and calculates total cost
+// =====================================================
+
 import React, { useState, useEffect } from 'react';
-import { Fuel, AlertCircle, Droplet } from 'lucide-react';
-import { inventoryService } from '../lib/supabase/database';
-import { notifyError } from '../lib/utils/notifications';
-import type { StationFuelInventory } from '../types/advanced';
-import { Card } from './ui/card';
-import { Badge } from './ui/badge';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Skeleton } from './ui/skeleton';
+import { Fuel, DollarSign, Droplet, AlertCircle } from 'lucide-react';
+import { inventoryService } from '../../lib/supabase/database';
+import { notifyError } from '../../lib/utils/notifications';
+import type { StationFuelInventory } from '../../types/advanced';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Skeleton } from '../ui/skeleton';
 
 interface FuelTypeSelectorProps {
   stationId: string;
@@ -45,6 +52,7 @@ export function FuelTypeSelector({
       const available = data.filter((inv) => inv.is_available);
       setInventory(available);
 
+      // Auto-select if only one option or pre-selected
       if (selectedFuelTypeId) {
         const fuel = available.find((f) => f.fuel_type_id === selectedFuelTypeId);
         if (fuel) setSelectedFuel(fuel);
@@ -64,18 +72,19 @@ export function FuelTypeSelector({
   };
 
   const handleQuantityChange = (value: string) => {
-    const num = parseInt(value);
-    if (!isNaN(num) && num >= 5 && num <= 200) {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num > 0 && num <= 200) {
       setQuantity(num);
     }
   };
 
   const getFuelIcon = (fuelName: string) => {
     const icons: Record<string, string> = {
-      Petrol: '🟢',
-      Diesel: '🟣',
-      Benzene: '🟤',
-      'Premium Gasoline': '★',
+      Petrol: '⛽',
+      Diesel: '🚛',
+      Benzene: '🧪',
+      'Premium Gasoline': '⭐',
+      Kerosene: '🔥',
     };
     return icons[fuelName] || '⛽';
   };
@@ -98,78 +107,97 @@ export function FuelTypeSelector({
       <Card className="p-8 text-center">
         <AlertCircle className="size-12 mx-auto mb-3 text-gray-400" />
         <p className="font-medium text-gray-700 mb-1">No Fuel Available</p>
-        <p className="text-sm text-gray-500">This station currently has no fuel in stock.</p>
+        <p className="text-sm text-gray-500">
+          This station currently has no fuel in stock.
+        </p>
       </Card>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h3 className="text-lg font-semibold mb-1">Select Fuel Type</h3>
         <p className="text-sm text-gray-600">Choose your fuel and quantity</p>
       </div>
 
+      {/* Fuel Types */}
       <div className="grid gap-3 sm:grid-cols-2">
         {inventory.map((fuel) => (
           <Card
             key={fuel.id}
             className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-              selectedFuel?.id === fuel.id ? 'border-2 border-primary bg-primary/5' : 'border border-gray-200'
+              selectedFuel?.id === fuel.id
+                ? 'border-2 border-primary bg-primary/5'
+                : 'border border-gray-200'
             }`}
             onClick={() => handleSelectFuel(fuel)}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl">{getFuelIcon(fuel.fuel_type_name)}</div>
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">{getFuelIcon(fuel.fuel_type_name!)}</div>
                 <div>
                   <p className="font-semibold text-base">{fuel.fuel_type_name}</p>
                   <p className="text-xs text-gray-500">{fuel.fuel_type_code}</p>
                 </div>
               </div>
-              {selectedFuel?.id === fuel.id && <Badge className="bg-primary">Selected</Badge>}
+              {selectedFuel?.id === fuel.id && (
+                <Badge className="bg-primary">Selected</Badge>
+              )}
             </div>
+
             <div className="space-y-2">
+              {/* Price */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Price per Liter</span>
-                <span className="font-semibold text-green-600">ETB {fuel.effective_price?.toFixed(2)}</span>
+                <span className="font-semibold text-green-600">
+                  ETB {fuel.effective_price?.toFixed(2)}
+                </span>
               </div>
+
+              {/* Stock Level */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Available Stock</span>
                 <div className="flex items-center gap-1">
                   <Droplet className="size-3 text-blue-500" />
                   <span className={`text-sm font-medium ${
                     fuel.stock_status === 'low' ? 'text-red-600' :
-                    fuel.stock_status === 'moderate' ? 'text-yellow-600' : 'text-green-600'
+                    fuel.stock_status === 'moderate' ? 'text-yellow-600' :
+                    'text-green-600'
                   }`}>
                     {fuel.current_stock.toLocaleString()}L
                   </span>
                 </div>
               </div>
-              {fuel.stock_status === 'low' && (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <AlertCircle className="size-3" /> Low stock – Book soon!
-                  </p>
-                </div>
-              )}
             </div>
+
+            {fuel.stock_status === 'low' && (
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="size-3" />
+                  Low stock - Book soon!
+                </p>
+              </div>
+            )}
           </Card>
         ))}
       </div>
 
+      {/* Quantity Selector */}
       {selectedFuel && (
         <Card className="p-4 border-2 border-primary/20 bg-primary/5">
           <div className="space-y-4">
             <div>
               <Label htmlFor="quantity" className="text-base font-semibold mb-2 block">
-                <Fuel className="size-4 inline mr-1" /> Fuel Quantity (Liters)
+                <Fuel className="size-4 inline mr-1" />
+                Fuel Quantity (Liters)
               </Label>
               <div className="flex gap-3">
                 <Input
                   id="quantity"
                   type="number"
-                  min="5"
+                  min="1"
                   max="200"
                   step="1"
                   value={quantity}
@@ -179,28 +207,29 @@ export function FuelTypeSelector({
                 <div className="flex flex-col gap-1">
                   <button
                     type="button"
-                    onClick={() => setQuantity(Math.min(200, quantity + 1))}
+                    onClick={() => setQuantity(Math.min(200, quantity + 5))}
                     className="px-3 py-1 bg-primary text-white rounded text-sm hover:bg-primary/90"
                   >
-                    +1
+                    +5
                   </button>
                   <button
                     type="button"
-                    onClick={() => setQuantity(Math.max(5, quantity - 1))}
+                    onClick={() => setQuantity(Math.max(1, quantity - 5))}
                     className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
                   >
-                    -1
+                    -5
                   </button>
                 </div>
               </div>
               <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>Min: 5L</span>
+                <span>Min: 1L</span>
                 <span>Max: 200L</span>
               </div>
             </div>
 
+            {/* Quick Select Buttons */}
             <div className="grid grid-cols-4 gap-2">
-              {[5, 10, 20, 30, 50, 100].map((val) => (
+              {[10, 20, 30, 50].map((val) => (
                 <button
                   key={val}
                   type="button"
@@ -216,7 +245,8 @@ export function FuelTypeSelector({
               ))}
             </div>
 
-            {quantity > (selectedFuel.current_stock || 0) && (
+            {/* Validation */}
+            {quantity > selectedFuel.current_stock && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-700 flex items-center gap-2">
                   <AlertCircle className="size-4" />
@@ -225,6 +255,7 @@ export function FuelTypeSelector({
               </div>
             )}
 
+            {/* Price Summary */}
             <div className="pt-4 border-t border-primary/20">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -252,6 +283,7 @@ export function FuelTypeSelector({
         </Card>
       )}
 
+      {/* Info */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <div className="flex gap-2 text-sm text-blue-900">
           <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />

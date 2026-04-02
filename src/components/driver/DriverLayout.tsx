@@ -75,9 +75,10 @@ export function DriverLayout() {
   const loadStations = async () => {
     setLoadingStations(true);
     try {
+      // 1. Fetch all stations
       const allStations = await db.stations.getAll();
   
-      // Fetch inventory to know which fuels are available
+      // 2. Fetch inventory for these stations
       const { data: inventoryData, error: invError } = await supabase
         .from('station_fuel_inventory')
         .select(`
@@ -89,25 +90,33 @@ export function DriverLayout() {
   
       if (invError) throw invError;
   
-      // Build map station_id -> array of available fuel names
-      const stationAvailableFuels: Record<string, string[]> = {};
+      // Build a map of station_id -> availability flags
+      const stationAvailability: Record<string, { petrolAvailable: boolean; dieselAvailable: boolean }> = {};
       (inventoryData || []).forEach(item => {
         const stationId = item.station_id;
         const fuelName = item.fuel_type?.name;
-        if (item.is_available && fuelName) {
-          if (!stationAvailableFuels[stationId]) stationAvailableFuels[stationId] = [];
-          stationAvailableFuels[stationId].push(fuelName);
+        if (!stationAvailability[stationId]) {
+          stationAvailability[stationId] = { petrolAvailable: false, dieselAvailable: false };
+        }
+        if (fuelName === 'Petrol' && item.is_available) {
+          stationAvailability[stationId].petrolAvailable = true;
+        } else if (fuelName === 'Diesel' && item.is_available) {
+          stationAvailability[stationId].dieselAvailable = true;
         }
       });
   
-      // Enrich stations and compute distance if user location is known
-      let stationsWithDistance = allStations.map(station => ({
-        ...station,
-        availableFuels: stationAvailableFuels[station.id] || [],
-        queueLength: 'Short',    // placeholder – you can keep the original property
-        distance: 0,
-      }));
+      // 3. Enrich stations with availability and compute distance
+      let stationsWithDistance = allStations.map(station => {
+        const avail = stationAvailability[station.id] || { petrolAvailable: false, dieselAvailable: false };
+        return {
+          ...station,
+          ...avail,
+          queueLength: 'Short' as const,   // default value; can be extended later
+          distance: 0,                      // will be recalculated if location available
+        };
+      });
   
+      // 4. Compute distance if userLocation is available
       if (userLocation) {
         stationsWithDistance = stationsWithDistance.map(station => ({
           ...station,
