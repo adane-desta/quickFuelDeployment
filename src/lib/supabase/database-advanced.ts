@@ -119,12 +119,22 @@ export const reservationService = {
    * Create a new reservation
    */
   async createReservation(reservationData: CreateReservationFormData, driverId: string): Promise<string | null> {
-    try {
-      // Get slot details
-      const slot = await timeSlotService.getSlotById(reservationData.time_slot_id);
-      if (!slot) throw new Error('Invalid time slot');
+    console.log('=== createReservation called ===');
+    console.log('reservationData:', reservationData);
+    console.log('driverId:', driverId);
   
-      // Get fuel inventory and price
+    try {
+      // 1. Get slot details
+      console.log('Fetching slot with id:', reservationData.time_slot_id);
+      const slot = await timeSlotService.getSlotById(reservationData.time_slot_id);
+      if (!slot) {
+        console.error('Slot not found for id:', reservationData.time_slot_id);
+        throw new Error('Invalid time slot');
+      }
+      console.log('Slot found:', slot);
+  
+      // 2. Get fuel inventory and price
+      console.log('Fetching inventory for station:', reservationData.station_id, 'fuel_type:', reservationData.fuel_type_id);
       const { data: inventory, error: invError } = await supabase
         .from('station_fuel_inventory')
         .select(`
@@ -135,49 +145,77 @@ export const reservationService = {
         .eq('fuel_type_id', reservationData.fuel_type_id)
         .single();
   
-      if (invError || !inventory) throw new Error('Fuel type not available');
+      if (invError) {
+        console.error('Inventory fetch error:', invError);
+        throw new Error('Fuel type not available');
+      }
+      if (!inventory) {
+        console.error('No inventory record found');
+        throw new Error('Fuel type not available');
+      }
+      console.log('Inventory found:', inventory);
   
       const pricePerLiter = inventory.custom_price_per_liter || inventory.fuel_type.base_price_per_liter;
       const totalPrice = pricePerLiter * reservationData.quantity;
+      console.log(`Price per liter: ${pricePerLiter}, total: ${totalPrice}`);
   
-      // Generate pickup code
+      // 3. Generate pickup code
       const pickupCode = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log('Generated pickup code:', pickupCode);
   
-      // Calculate expiration (slot end time + 15 minutes)
+      // 4. Calculate expiration (slot end time + 15 minutes)
       const expiresAt = new Date(`${slot.slot_date}T${slot.end_time}`);
       expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+      console.log('Expires at:', expiresAt.toISOString());
   
-      // Insert reservation
+      // 5. Insert reservation
+      const insertData = {
+        driver_id: driverId,
+        station_id: reservationData.station_id,
+        time_slot_id: reservationData.time_slot_id,
+        fuel_type_id: reservationData.fuel_type_id,
+        quantity: reservationData.quantity,
+        price_per_liter: pricePerLiter,
+        total_price: totalPrice,
+        payment_method: reservationData.payment_method,
+        pickup_code: pickupCode,
+        expires_at: expiresAt.toISOString(),
+        status: 'pending',
+        payment_status: 'pending',
+        notes: reservationData.notes,
+      };
+      console.log('Inserting reservation with data:', insertData);
+  
       const { data, error } = await supabase
         .from('reservations')
-        .insert({
-          driver_id: driverId,
-          station_id: reservationData.station_id,
-          time_slot_id: reservationData.time_slot_id,
-          fuel_type_id: reservationData.fuel_type_id,
-          quantity: reservationData.quantity,
-          price_per_liter: pricePerLiter,
-          total_price: totalPrice,
-          payment_method: reservationData.payment_method,
-          pickup_code: pickupCode,
-          expires_at: expiresAt.toISOString(),
-          status: 'pending',
-          payment_status: 'pending',
-          notes: reservationData.notes,
-        })
+        .insert(insertData)
         .select()
         .single();
   
-      if (error) throw error;
+      if (error) {
+        console.error('Reservation insert error:', error);
+        throw error;
+      }
+      console.log('Reservation inserted, id:', data.id);
   
-      // Create payment transaction record
-      await supabase.from('payment_transactions').insert({
+      // 6. Create payment transaction record
+      const txData = {
         reservation_id: data.id,
         amount: totalPrice,
         payment_method: reservationData.payment_method,
         transaction_reference: `TXN-${Date.now()}-${pickupCode}`,
         status: 'pending',
-      });
+      };
+      console.log('Inserting payment transaction:', txData);
+      const { error: txError } = await supabase
+        .from('payment_transactions')
+        .insert(txData);
+      if (txError) {
+        console.error('Payment transaction insert error:', txError);
+        // Not fatal, we can still return the reservation id
+      } else {
+        console.log('Payment transaction inserted');
+      }
   
       return data.id;
     } catch (error) {
@@ -185,7 +223,7 @@ export const reservationService = {
       notifyError('Failed to create reservation', error);
       return null;
     }
-  }
+  },
 
   /**
    * Get driver's reservations
@@ -413,7 +451,8 @@ export const reservationService = {
       notifyError('Failed to confirm payment', error);
       return false;
     }
-  }
+  },
+};
 
 // =====================================================
 // FUEL DELIVERY SERVICES
