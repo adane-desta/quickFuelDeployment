@@ -6,7 +6,8 @@ import { QuickActions } from '../QuickActions';
 import { ListView } from '../ListView';
 import { MapView } from '../MapView';
 import { BottomNav } from '../BottomNav';
-import { ReservationFlow } from '../ReservationFlow';
+// import { ReservationFlow } from '../ReservationFlow';
+import { CompleteReservationFlow } from '../reservation/CompleteReservationFlow';
 import { DriverReservationsScreen } from './DriverReservationsScreen';
 import { DriverNotificationsScreen } from './DriverNotificationsScreen';
 import { DriverProfileScreen } from './DriverProfileScreen';
@@ -17,7 +18,7 @@ import { db } from '../../lib/supabase/services';
 import { supabase } from '../../lib/supabase/client';
 import { notifyError } from '../../lib/utils/notifications';
 
-// Helper to calculate distance between two coordinates (in km)
+// Helper to calculate distance between two coordinaonReservetes (in km)
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; // Radius of the earth in km
   const dLat = deg2rad(lat2 - lat1);
@@ -384,7 +385,7 @@ export function DriverLayout() {
 
       {/* Reservation Flow Modal */}
       {selectedStationForReservation && (
-        <ReservationFlow
+        <CompleteReservationFlow
           station={selectedStationForReservation}
           onClose={() => setSelectedStationForReservation(null)}
         />

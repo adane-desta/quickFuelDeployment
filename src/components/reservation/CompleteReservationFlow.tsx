@@ -56,24 +56,32 @@ export function CompleteReservationFlow() {
   };
 
   const handleProceedToPayment = async () => {
+    console.log('=== handleProceedToPayment called ===');
+    console.log('user:', user);
+    console.log('selectedStation:', selectedStation);
+    console.log('selectedTimeSlot:', selectedTimeSlot);
+    console.log('fuelData:', fuelData);
+
     if (!user || !selectedStation || !selectedTimeSlot || !fuelData) {
+      console.error('Missing data for reservation');
       notifyError('Missing required information');
       return;
     }
 
     setCreating(true);
     try {
+      console.log('Calling reservationService.createReservation...');
       const resId = await reservationService.createReservation(
         {
           station_id: selectedStation.id,
           time_slot_id: selectedTimeSlot.id,
           fuel_type_id: fuelData.fuelTypeId,
           quantity: fuelData.quantity,
-          payment_method: 'Telebirr', // will be updated after payment
+          payment_method: 'Telebirr',
         },
         user.id
       );
-
+      console.log('resId returned:', resId);
       if (resId) {
         setReservationId(resId);
         setCurrentStep(4);
@@ -161,12 +169,31 @@ export function CompleteReservationFlow() {
           />
         )}
         {currentStep === 3 && selectedStation && (
-          <FuelTypeSelector
-            stationId={selectedStation.id}
-            onSelectFuel={handleFuelSelect}
-            selectedFuelTypeId={fuelData?.fuelTypeId}
-            selectedQuantity={fuelData?.quantity}
-          />
+          <>
+            <FuelTypeSelector
+              stationId={selectedStation.id}
+              onSelectFuel={handleFuelSelect}
+              selectedFuelTypeId={fuelData?.fuelTypeId}
+              selectedQuantity={fuelData?.quantity}
+            />
+            <div className="mt-6">
+              <Button
+                onClick={handleProceedToPayment}
+                disabled={!fuelData || creating}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                size="lg"
+              >
+                {creating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                    Creating Reservation...
+                  </>
+                ) : (
+                  'Proceed to Payment'
+                )}
+              </Button>
+            </div>
+          </>
         )}
         {currentStep === 4 && reservationId && fuelData && (
           <PaymentProcessor
