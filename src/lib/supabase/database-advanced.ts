@@ -30,6 +30,7 @@ export const timeSlotService = {
    */
   async getAvailableSlots(stationId: string, date: string): Promise<TimeSlot[]> {
     try {
+      console.log('getAvailableSlots called with:', { stationId, date });
       const { data, error } = await supabase
         .from('time_slots')
         .select('*')
@@ -38,9 +39,16 @@ export const timeSlotService = {
         .in('status', ['available', 'limited'])
         .gte('slot_date', new Date().toISOString().split('T')[0]) // Only future dates
         .order('start_time');
-
-      if (error) throw error;
-      
+  
+      if (error) {
+        console.error('Supabase error in getAvailableSlots:', error);
+        throw error;
+      }
+      console.log('Slots fetched:', data);
+      if (!data || data.length === 0) {
+        console.log('No slots found for this station and date');
+        return [];
+      }
       return (data || []).map((slot: any) => ({
         ...slot,
         available_spots: slot.max_capacity - slot.current_reservations,
@@ -49,7 +57,8 @@ export const timeSlotService = {
         is_today: slot.slot_date === new Date().toISOString().split('T')[0],
       }));
     } catch (error) {
-      logError('getAvailableSlots', error);
+      console.error('getAvailableSlots error:', error);
+      notifyError('Failed to load time slots', error);
       return [];
     }
   },
