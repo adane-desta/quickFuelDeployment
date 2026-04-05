@@ -177,13 +177,16 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
           {currentStep === 1 && selectedStation && (
             <StationSelection station={selectedStation} onNext={handleStationSelect} />
           )}
-          {currentStep === 2 && selectedStation && (
+        {currentStep === 2 && selectedStation && (
+          <>
+            {console.log('DEBUG: selectedStation in CompleteReservationFlow:', selectedStation)}
             <TimeSlotSelector
               stationId={selectedStation.id}
               onSelectSlot={handleTimeSlotSelect}
               selectedSlotId={selectedTimeSlot?.id}
             />
-          )}
+          </>
+        )}
           {currentStep === 3 && selectedStation && (
             <>
               <FuelTypeSelector
