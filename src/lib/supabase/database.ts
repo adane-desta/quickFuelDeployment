@@ -111,9 +111,6 @@ export const userService = {
     }
   },
 
-  /**
-   * Create operator account
-   */
   async createOperator(operatorData: {
     email: string;
     full_name: string;
@@ -121,10 +118,10 @@ export const userService = {
     station_id: string;
   }): Promise<boolean> {
     try {
-      // Generate temporary password
       const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
-
-      // Create auth user
+      console.log(`🔐 OPERATOR CREDENTIALS – Email: ${operatorData.email}, Password: ${tempPassword}`);
+  
+      // 1. Create auth user (trigger will create public.users row)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: operatorData.email,
         password: tempPassword,
@@ -133,41 +130,37 @@ export const userService = {
             full_name: operatorData.full_name,
             phone: operatorData.phone,
             role: 'operator',
+            station_id: operatorData.station_id, // include station_id in metadata
           },
+          emailRedirectTo: undefined,
         },
       });
-
+  
       if (authError) throw authError;
-
-      // Create user profile
-      const { error: profileError } = await supabase
+  
+      // 2. Wait for trigger to insert base record
+      await new Promise(resolve => setTimeout(resolve, 1500));
+  
+      // 3. Update the user record with operator-specific fields (station_id, status, hired_date)
+      const { error: updateError } = await supabase
         .from('users')
-        .insert({
-          id: authData.user.id,
-          email: operatorData.email,
-          full_name: operatorData.full_name,
-          phone: operatorData.phone,
-          role: 'operator',
+        .update({
           station_id: operatorData.station_id,
           operator_status: 'active',
           hired_date: new Date().toISOString().split('T')[0],
-        });
-
-      if (profileError) throw profileError;
-
-      // Send credentials email (would be implemented with email service)
-      // For now, log the password (in production, send email)
-      if (import.meta.env.DEV) {
-        console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
-      }
-
+        })
+        .eq('id', authData.user.id);
+  
+      if (updateError) throw updateError;
+  
+      console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
       return true;
     } catch (error) {
       logError('createOperator', error);
       notifyError('Failed to create operator', error);
       return false;
     }
-  },
+  }
 
   /**
    * Update operator status

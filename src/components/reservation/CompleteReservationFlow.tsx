@@ -30,7 +30,7 @@ interface CompleteReservationFlowProps {
 export function CompleteReservationFlow({ station: initialStation, onClose }: CompleteReservationFlowProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialStation ? 2 : 1);
   const [creating, setCreating] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(initialStation);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -174,9 +174,9 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {currentStep === 1 && selectedStation && (
-            <StationSelection station={selectedStation} onNext={handleStationSelect} />
-          )}
+          {currentStep === 1 && !initialStation && (
+          <StationSelection onSelectStation={handleStationSelect} />
+        )}
         {currentStep === 2 && selectedStation && (
           <>
             {console.log('DEBUG: selectedStation in CompleteReservationFlow:', selectedStation)}

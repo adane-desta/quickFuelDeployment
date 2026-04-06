@@ -20,6 +20,7 @@ export function ListView({ stations, onReserve }: ListViewProps) {
   return (
     <div className="h-full overflow-y-auto p-4 space-y-3">
       {stations.map((station) => (
+        
         <StationCard key={station.id} station={station} onReserve={onReserve} />
       ))}
     </div>
