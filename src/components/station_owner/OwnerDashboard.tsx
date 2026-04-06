@@ -416,41 +416,34 @@ export function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
               </Button>
             </div>
 
-            {recentReservations.length === 0 ? (
-              <div className="text-center py-8">
-                <Calendar className="size-12 mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-600">No recent reservations</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {recentReservations.slice(0, 8).map((reservation) => (
-                  <div
-                    key={reservation.id}
-                    className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{reservation.driver_name}</p>
-                        <p className="text-sm text-gray-600">{reservation.fuel_type_name}</p>
-                      </div>
-                      <Badge className={getReservationStatusColor(reservation.status)}>
-                        {reservation.status}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Fuel className="size-3" />
-                        <span>{reservation.quantity}L</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="size-3" />
-                        <span>{reservation.time_slot}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+   {recentReservations.slice(0, 8).map((reservation) => (
+        <div
+    key={reservation.id}
+    className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+  >
+    <div className="flex items-start justify-between mb-2">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium truncate">{reservation.driver_name}</p>
+        <p className="text-sm text-gray-600">{reservation.fuel_type_name}</p>
+      </div>
+      <Badge className={getReservationStatusColor(reservation.status)}>
+        {reservation.status}
+      </Badge>
+    </div>
+    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+      <div className="flex items-center gap-1">
+        <Fuel className="size-3" />
+        <span>{reservation.quantity}L</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <Clock className="size-3" />
+        <span>
+          {reservation.time_slot?.start_time} - {reservation.time_slot?.end_time}
+        </span>
+      </div>
+    </div>
+  </div>
+))}
           </Card>
         </div>
 
