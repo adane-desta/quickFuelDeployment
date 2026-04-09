@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../lib/supabase/services';
+import { supabase } from '../../lib/supabase/client'
 import { Station } from '../../types';
 import {
   Building2, Search, MapPin, Clock, Users, CheckCircle, XCircle, Shield, Eye,
-  Loader2, X, Phone, AlertTriangle, Plus, Calendar, User
+  Loader2, X, Phone, AlertTriangle, Plus, Calendar, User, FileText, Fuel
 } from 'lucide-react';
 import { AddStationModal } from './AddStationModal';
 import { Button } from '../ui/button';
@@ -45,10 +46,15 @@ export function StationManagement() {
   const handleVerify = async (id: string) => {
     setVerifying(id);
     try {
-      await db.stations.verify(id, 'admin'); // assuming db.stations.verify exists
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      console.log('Verifying station:', id, 'by user:', user.id);
+      const result = await db.stations.verify(id, user.id);
+      console.log('Verification result:', result);
       setStations(prev => prev.map(s => s.id === id ? { ...s, is_verified: true } : s));
       toast.success('Station verified successfully');
     } catch (error) {
+      console.error('Verification error:', error);
       toast.error('Verification failed');
     } finally {
       setVerifying(null);
@@ -58,7 +64,11 @@ export function StationManagement() {
   const handleRevoke = async (id: string) => {
     setVerifying(id);
     try {
-      await db.stations.update(id, { is_verified: false });
+      await db.stations.update(id, { 
+        is_verified: false,
+        verified_by: null,
+        verification_date: null,
+      });
       setStations(prev => prev.map(s => s.id === id ? { ...s, is_verified: false } : s));
       toast.success('Verification revoked');
     } catch (error) {

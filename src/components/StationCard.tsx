@@ -7,6 +7,7 @@ interface StationCardProps {
 }
 
 export function StationCard({ station, onReserve }: StationCardProps) {
+  console.log('DEBUG: Station passed to reservation:', station);
   const queueColors = {
     Short: 'bg-green-100 text-green-700 border-green-300',
     Medium: 'bg-yellow-100 text-yellow-700 border-yellow-300',

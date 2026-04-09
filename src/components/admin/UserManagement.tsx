@@ -130,6 +130,7 @@ export function UserManagement() {
           { label: 'Total Users', value: users.length, color: 'bg-blue-100 text-blue-600' },
           { label: 'Drivers', value: users.filter(u => u.role === 'driver').length, color: 'bg-green-100 text-green-600' },
           { label: 'Operators', value: users.filter(u => u.role === 'operator').length, color: 'bg-orange-100 text-orange-600' },
+          { label: 'Station owners', value: users.filter(u => u.role === 'station_owner').length, color: 'bg-orange-100 text-orange-600' },
           { label: 'Active', value: users.filter(u => u.isActive).length, color: 'bg-emerald-100 text-emerald-600' },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
@@ -154,7 +155,7 @@ export function UserManagement() {
           </div>
         </div>
         <div className="flex gap-2 overflow-x-auto">
-          {(['all', 'driver', 'operator', 'admin'] as const).map(r => {
+          {(['all', 'driver', 'operator', 'station_owner' , 'admin'] as const).map(r => {
             const count = r === 'all' ? users.length : users.filter(u => u.role === r).length;
             return (
               <button

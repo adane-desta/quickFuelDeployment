@@ -7,6 +7,7 @@
 
 import { supabase } from './client';
 import { notifyError, logError } from '../utils/notifications';
+import { db } from './services';
 import type {
   User,
   Station,
@@ -120,53 +121,21 @@ export const userService = {
     phone: string;
     station_id: string;
   }): Promise<boolean> {
-    try {
-      // Generate temporary password
-      const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
-
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: operatorData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: operatorData.full_name,
-            phone: operatorData.phone,
-            role: 'operator',
-          },
-        },
-      });
-
-      if (authError) throw authError;
-
-      // Create user profile
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: operatorData.email,
-          full_name: operatorData.full_name,
-          phone: operatorData.phone,
-          role: 'operator',
-          station_id: operatorData.station_id,
-          operator_status: 'active',
-          hired_date: new Date().toISOString().split('T')[0],
-        });
-
-      if (profileError) throw profileError;
-
-      // Send credentials email (would be implemented with email service)
-      // For now, log the password (in production, send email)
-      if (import.meta.env.DEV) {
-        console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
-      }
-
+    const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
+    const result = await db.users.createUserViaEdge({
+      email: operatorData.email,
+      password: tempPassword,
+      full_name: operatorData.full_name,
+      phone: operatorData.phone,
+      role: 'operator',
+      station_id: operatorData.station_id,
+    });
+    if (result.success) {
+      console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
       return true;
-    } catch (error) {
-      logError('createOperator', error);
-      notifyError('Failed to create operator', error);
-      return false;
     }
+    notifyError('Failed to create operator', result.error);
+    return false;
   },
 
   /**
