@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchBar } from '../SearchBar';
@@ -6,35 +6,141 @@ import { QuickActions } from '../QuickActions';
 import { ListView } from '../ListView';
 import { MapView } from '../MapView';
 import { BottomNav } from '../BottomNav';
-import { ReservationFlow } from '../ReservationFlow';
+// import { ReservationFlow } from '../ReservationFlow';
+import { CompleteReservationFlow } from '../reservation/CompleteReservationFlow';
 import { DriverReservationsScreen } from './DriverReservationsScreen';
 import { DriverNotificationsScreen } from './DriverNotificationsScreen';
 import { DriverProfileScreen } from './DriverProfileScreen';
 import { ReportQueueModal } from './ReportQueueModal';
 import { Bell, Home, Calendar, User, Fuel, MapPin, LogOut, Heart, Settings, Menu, X } from 'lucide-react';
-import { mockStations } from '../../data/mockData';
 import { Station } from '../../types';
+import { db } from '../../lib/supabase/services';
+import { supabase } from '../../lib/supabase/client';
+import { notifyError } from '../../lib/utils/notifications';
+
+// Helper to calculate distance between two coordinaonReservetes (in km)
+const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+};
+
+const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
 export function DriverLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [stations, setStations] = useState<Station[]>(mockStations);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loadingStations, setLoadingStations] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [notificationCount] = useState(2);
   const [selectedStationForReservation, setSelectedStationForReservation] = useState<Station | null>(null);
   const [showReportQueue, setShowReportQueue] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
+  useEffect(() => {
+    // Get user location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn('Geolocation error:', error);
+          // Fallback: use Addis Ababa coordinates
+          setUserLocation({ lat: 9.0192, lng: 38.7525 });
+        }
+      );
+    } else {
+      setUserLocation({ lat: 9.0192, lng: 38.7525 });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStations();
+  }, []);
+
+  const loadStations = async () => {
+    setLoadingStations(true);
+    try {
+      // 1. Fetch all stations
+      const allStations = await db.stations.getAll();
+  
+      // 2. Fetch inventory for these stations
+      const { data: inventoryData, error: invError } = await supabase
+        .from('station_fuel_inventory')
+        .select(`
+          station_id,
+          is_available,
+          fuel_type:fuel_type_id (name)
+        `)
+        .in('station_id', allStations.map(s => s.id));
+  
+      if (invError) throw invError;
+  
+      // Build a map of station_id -> availability flags
+      const stationAvailability: Record<string, { petrolAvailable: boolean; dieselAvailable: boolean }> = {};
+      (inventoryData || []).forEach(item => {
+        const stationId = item.station_id;
+        const fuelName = item.fuel_type?.name;
+        if (!stationAvailability[stationId]) {
+          stationAvailability[stationId] = { petrolAvailable: false, dieselAvailable: false };
+        }
+        if (fuelName === 'Petrol' && item.is_available) {
+          stationAvailability[stationId].petrolAvailable = true;
+        } else if (fuelName === 'Diesel' && item.is_available) {
+          stationAvailability[stationId].dieselAvailable = true;
+        }
+      });
+  
+      // 3. Enrich stations with availability and compute distance
+      let stationsWithDistance = allStations.map(station => {
+        const avail = stationAvailability[station.id] || { petrolAvailable: false, dieselAvailable: false };
+        return {
+          ...station,
+          ...avail,
+          queueLength: 'Short' as const,   // default value; can be extended later
+          distance: 0,                      // will be recalculated if location available
+        };
+      });
+  
+      // 4. Compute distance if userLocation is available
+      if (userLocation) {
+        stationsWithDistance = stationsWithDistance.map(station => ({
+          ...station,
+          distance: getDistanceFromLatLonInKm(
+            userLocation.lat,
+            userLocation.lng,
+            station.latitude,
+            station.longitude
+          ),
+        }));
+      }
+  
+      setStations(stationsWithDistance);
+    } catch (error) {
+      console.error('Error loading stations:', error);
+      notifyError('Failed to load stations');
+    } finally {
+      setLoadingStations(false);
+    }
+  };
 
   const handleRefresh = () => {
-    const shuffled = [...mockStations].sort(() => Math.random() - 0.5);
-    setStations(shuffled);
+    loadStations(); // reload stations (already with fresh data)
   };
 
   const filteredStations = stations.filter(station => {
@@ -64,6 +170,15 @@ export function DriverLayout() {
       case 'home':
         return (
           <>
+          
+          {console.log('Rendering modal, selectedStationForReservation:', selectedStationForReservation)}
+          {selectedStationForReservation && (
+            <CompleteReservationFlow
+              station={selectedStationForReservation}
+              onClose={() => setSelectedStationForReservation(null)}
+            />
+          )}
+          
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 lg:px-6 py-4 shadow-md">
               <div className="flex items-center justify-between mb-4">
@@ -76,7 +191,7 @@ export function DriverLayout() {
                   </button>
                   <div>
                     <h1 className="text-white">QuickFuel</h1>
-                    <p className="text-blue-100 text-sm">Welcome, {user.fullName?.split(' ')[0]}</p>
+                    <p className="text-blue-100 text-sm">Welcome, {user?.full_name?.split(' ')[0] || 'Driver'}</p>
                   </div>
                 </div>
                 <button
@@ -105,7 +220,11 @@ export function DriverLayout() {
 
             {/* Main Content */}
             <div className="flex-1 overflow-hidden">
-              {viewMode === 'list' ? (
+              {loadingStations ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                </div>
+              ) : viewMode === 'list' ? (
                 <ListView
                   stations={filteredStations}
                   onReserve={setSelectedStationForReservation}
@@ -152,8 +271,8 @@ export function DriverLayout() {
               <User className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-900 truncate">{user.fullName}</p>
-              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <p className="text-sm text-gray-900 truncate">{user?.fullName || 'Driver'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
           </div>
         </div>
@@ -218,7 +337,7 @@ export function DriverLayout() {
                   <User className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-900">{user.fullName}</p>
+                  <p className="text-sm text-gray-900">{user?.full_name}</p>
                   <p className="text-xs text-gray-500">Driver</p>
                 </div>
               </div>
@@ -275,7 +394,7 @@ export function DriverLayout() {
 
       {/* Reservation Flow Modal */}
       {selectedStationForReservation && (
-        <ReservationFlow
+        <CompleteReservationFlow
           station={selectedStationForReservation}
           onClose={() => setSelectedStationForReservation(null)}
         />
@@ -284,7 +403,7 @@ export function DriverLayout() {
       {/* Report Queue Modal */}
       {showReportQueue && (
         <ReportQueueModal
-          stations={mockStations}
+          stations={stations}
           onClose={() => setShowReportQueue(false)}
         />
       )}
