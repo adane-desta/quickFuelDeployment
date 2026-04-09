@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { OperatorDashboard } from './OperatorDashboard';
@@ -8,6 +8,8 @@ import { OperatorReservations } from './OperatorReservations';
 import { PickupVerification } from './PickupVerification';
 import { OperatorNotifications } from './OperatorNotifications';
 import { OperatorProfile } from './OperatorProfile';
+import { TodayReservationsPage } from './TodayReservationsPage';
+import { FuelInventoryViewPage } from './FuelInventoryViewPage';
 import {
   Fuel, LayoutDashboard, Droplets, Users, Calendar, QrCode, Bell, User, LogOut, Menu, X, Settings
 } from 'lucide-react';
@@ -18,7 +20,15 @@ export function OperatorLayout() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  if (!user) { navigate('/login'); return null; }
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+    }
+  }, [user, navigate]);
+
+  if (!user) {
+    return null;
+  }
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
