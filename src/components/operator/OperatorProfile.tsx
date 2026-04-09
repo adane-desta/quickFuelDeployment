@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { stationService } from '../../lib/supabase/database';
+import { notifyError } from '../../lib/utils/notifications';
+import type { Station } from '../../types/advanced';
 import {
   User, Mail, Phone, MapPin, Building2, FileText, Lock, Shield, Bell, Globe,
   LogOut, Edit2, X, Save, CheckCircle, ChevronRight, Clock
@@ -11,6 +14,8 @@ interface OperatorProfileProps {
 
 export function OperatorProfile({ onLogout }: OperatorProfileProps) {
   const { user, updateUser } = useAuth();
+  const [station, setStation] = useState<Station | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -29,6 +34,26 @@ export function OperatorProfile({ onLogout }: OperatorProfileProps) {
     emailNotifications: true,
     twoFactorAuth: false,
   });
+
+  useEffect(() => {
+    if (user) {
+      loadStationData();
+    }
+  }, [user]);
+
+  const loadStationData = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const stationData = await stationService.getOperatorStation(user.id);
+      setStation(stationData);
+    } catch (error) {
+      notifyError('Failed to load station data', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = () => {
     updateUser(editData);
@@ -126,9 +151,9 @@ export function OperatorProfile({ onLogout }: OperatorProfileProps) {
           </div>
           <div className="p-4 space-y-3">
             {[
-              { icon: Building2, label: 'Station Name', value: user?.stationName },
-              { icon: FileText, label: 'Business License', value: user?.businessLicense },
-              { icon: Clock, label: 'Operating Hours', value: '06:00 - 22:00' },
+              { icon: Building2, label: 'Station Name', value: station?.name || 'Not assigned' },
+              { icon: MapPin, label: 'Station Location', value: station?.address || 'Not set' },
+              { icon: Clock, label: 'Operating Hours', value: station?.is_24_hours ? '24/7' : `${station?.opening_time} - ${station?.closing_time}` || 'Not set' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <item.icon className="w-5 h-5 text-gray-400" />
