@@ -8,8 +8,8 @@ export interface SupabaseConfig {
 
 // Load from environment variables
 export const supabaseConfig: SupabaseConfig = { 
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://xqpjqpfpghqorziluumr.supabase.co',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxcGpxcGZwZ2hxb3J6aWx1dW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTIzMTIsImV4cCI6MjA4OTE4ODMxMn0.gGqbiDWRNj_Ux3H9csmb2itPq6wZ2-l3qihgFYdOoG8',
+  url: import.meta.env.VITE_SUPABASE_URL,
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
 };
 
 // Validate configuration on load

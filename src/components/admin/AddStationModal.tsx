@@ -218,8 +218,11 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }, { onConflict: 'id' });
-
-      if (upsertError) throw new Error('Failed to create owner profile');
+      
+      if (upsertError) {
+        console.log(upsertError)
+        throw new Error('Failed to create owner profile');
+      }
 
       // 4. Create the station
       const stationData = {

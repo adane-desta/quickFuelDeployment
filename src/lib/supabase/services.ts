@@ -17,6 +17,34 @@ import {
 // =====================================================
 
 export class UserService {
+
+  static async createUserViaEdge(userData: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone: string;
+    role: 'driver' | 'operator' | 'station_owner';
+    station_id?: string;
+    business_license_number?: string;
+    address?: string;
+    vehicle_model?: string;
+    plate_number?: string;
+    preferred_fuel_type?: string;
+    license_number?: string;
+  }): Promise<{ success: boolean; user_id?: string; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: userData,
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+      return { success: true, user_id: data.user_id };
+    } catch (error: any) {
+      console.error('createUserViaEdge error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   static async getAll(): Promise<User[]> {
     const { data, error } = await supabase
       .from('users')

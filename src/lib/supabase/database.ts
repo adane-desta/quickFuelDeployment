@@ -7,6 +7,7 @@
 
 import { supabase } from './client';
 import { notifyError, logError } from '../utils/notifications';
+import { db } from './services';
 import type {
   User,
   Station,
@@ -120,79 +121,21 @@ export const userService = {
     phone: string;
     station_id: string;
   }): Promise<boolean> {
-    try {
-      const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
-  
-      // 1. Create auth user (the trigger will automatically insert into public.users)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: operatorData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: operatorData.full_name,
-            phone: operatorData.phone,
-            role: 'operator',
-            station_id: operatorData.station_id, // include station_id in metadata
-          },
-          emailRedirectTo: undefined,
-        },
-      });
-  
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('No user data returned');
-  
-      // 2. Wait for the trigger to insert the base record (poll up to 5 seconds)
-      let retries = 0;
-      let userExists = false;
-      while (retries < 5 && !userExists) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const { data: existing } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', authData.user.id)
-          .maybeSingle();
-        if (existing) userExists = true;
-        retries++;
-      }
-  
-      if (!userExists) {
-        // Fallback: manually insert if trigger didn't fire
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email: operatorData.email,
-            full_name: operatorData.full_name,
-            phone: operatorData.phone,
-            role: 'operator',
-            station_id: operatorData.station_id,
-            is_active: true,
-          });
-        if (insertError) throw insertError;
-      }
-  
-      // 3. Update the user record with operator-specific fields
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          operator_status: 'active',
-          hired_date: new Date().toISOString().split('T')[0],
-        })
-        .eq('id', authData.user.id);
-  
-      if (updateError) throw updateError;
-  
-      // 4. Log credentials (in development) – later send email
-      if (import.meta.env.DEV) {
-        console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
-      }
-  
+    const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
+    const result = await db.users.createUserViaEdge({
+      email: operatorData.email,
+      password: tempPassword,
+      full_name: operatorData.full_name,
+      phone: operatorData.phone,
+      role: 'operator',
+      station_id: operatorData.station_id,
+    });
+    if (result.success) {
+      console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
       return true;
-    } catch (error) {
-      console.error('createOperator error:', error);
-      notifyError('Failed to create operator', error);
-      return false;
     }
+    notifyError('Failed to create operator', result.error);
+    return false;
   },
 
   /**

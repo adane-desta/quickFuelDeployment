@@ -3,6 +3,7 @@ import { User, UserRole } from '../types';
 import { supabase } from '../lib/supabase/client';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { db } from '../lib/supabase/services';
 
 interface AuthContextType {
   user: User | null;
@@ -165,132 +166,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (userData: Partial<User> & { password: string }): Promise<boolean> => {
     try {
-      const { email, password, ...profileData } = userData;
-
-      // Validate required fields
-      if (!email || !password) {
-        toast.error('Missing required fields', {
-          description: 'Email and password are required',
-        });
-        return false;
-      }
-
-      if (password.length < 8) {
-        toast.error('Weak password', {
-          description: 'Password must be at least 8 characters',
-        });
-        return false;
-      }
-
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+      const { email, password, fullName, phone, role, ...extra } = userData;
+      const result = await db.users.createUserViaEdge({
+        email: email!,
         password,
-        options: {
-          data: {
-            full_name: profileData.fullName,
-            phone: profileData.phone,
-            role: profileData.role || 'driver',
-          },
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
+        full_name: fullName!,
+        phone: phone!,
+        role: role || 'driver',
+        address: extra.address,
+        vehicle_model: extra.vehicleModel,
+        plate_number: extra.plateNumber,
+        preferred_fuel_type: extra.preferredFuelType,
+        license_number: extra.licenseNumber,
+        ...(role === 'operator' && { station_id: extra.stationId }),
+        ...(role === 'station_owner' && { business_license_number: extra.businessLicenseNumber }),
       });
-
-      if (authError) {
-        if (authError.message.includes('already registered')) {
-          toast.error('Email already registered', {
-            description: 'Please use a different email or login',
-          });
-        } else {
-          toast.error('Registration failed', {
-            description: authError.message,
-          });
-        }
-        return false;
+      if (result.success) {
+        toast.success('Registration successful! Please login.');
+        return true;
       }
-
-      if (!authData.user) {
-        toast.error('Registration failed', {
-          description: 'No user data returned',
-        });
-        return false;
-      }
-
-      const userId = authData.user.id;
-
-      // Wait for the trigger to create the base user record (max 5 seconds)
-      let retries = 0;
-      const maxRetries = 5;
-      let userExists = false;
-
-      while (retries < maxRetries && !userExists) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(1.5, retries))); // 1s, 1.5s, 2.25s, ...
-        const { data: existing } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle();
-        if (existing) {
-          userExists = true;
-          break;
-        }
-        retries++;
-      }
-
-      if (!userExists) {
-        console.error('User profile not created by trigger after waiting.');
-        toast.error('Registration failed', {
-          description: 'Could not create user profile. Please try again.',
-        });
-        // Optionally, try to delete the auth user? Not possible with anon key.
-        return false;
-      }
-
-      // Update the user record with additional fields (driver-specific)
-      const updateData: any = {};
-      if (profileData.fullName) updateData.full_name = profileData.fullName;
-      if (profileData.phone) updateData.phone = profileData.phone;
-      if (profileData.address) updateData.address = profileData.address;
-      if (profileData.vehicleModel) updateData.vehicle_model = profileData.vehicleModel;
-      if (profileData.plateNumber) updateData.plate_number = profileData.plateNumber.toUpperCase();
-      if (profileData.preferredFuelType) updateData.preferred_fuel_type = profileData.preferredFuelType;
-      if (profileData.licenseNumber) updateData.license_number = profileData.licenseNumber;
-
-      if (Object.keys(updateData).length > 0) {
-        const { error: updateError } = await supabase
-          .from('users')
-          .update(updateData)
-          .eq('id', userId);
-
-        if (updateError) {
-          console.error('Profile update error:', updateError);
-          toast.error('Profile update failed', {
-            description: updateError.message || 'Please try again',
-          });
-          // The user is created but incomplete. Continue, but show warning.
-        }
-      }
-
-      // Fetch the complete profile
-      const profile = await fetchUserProfile(authData.user);
-      
-      if (profile) {
-        setUser(profile);
-        toast.success('Registration successful!', {
-          description: 'Welcome to QuickFuel',
-        });
-      } else {
-        toast.warning('Registration completed', {
-          description: 'Please login to continue',
-        });
-      }
-      
-      return true;
+      throw new Error(result.error);
     } catch (error: any) {
-      console.error('Registration error:', error);
-      toast.error('Registration failed', {
-        description: error.message || 'An unexpected error occurred',
-      });
+      toast.error('Registration failed', { description: error.message });
       return false;
     }
   }, []);
