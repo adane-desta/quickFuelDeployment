@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { reservationService } from '../../lib/supabase/database-advanced';
 import { stationService } from '../../lib/supabase/database';
+import { supabase } from '../../lib/supabase/client';
 import { notifySuccess, notifyError, notifyWarning } from '../../lib/utils/notifications';
 import type { Reservation } from '../../types/advanced';
 import {
@@ -82,6 +83,7 @@ export function PickupVerification() {
   };
 
   const handleStartDispensing = async () => {
+    console.log('🔵 handleStartDispensing called');
     if (!reservation || !user || !stationId) return;
     setState('dispensing');
     setLoading(true);
@@ -103,16 +105,17 @@ export function PickupVerification() {
   };
 
   const handleCompleteDispensing = async () => {
-    if (!reservation || !user || !stationId) return;
+    if (!reservation || !user) return;
     setLoading(true);
     try {
-      await reservationService.updateReservationStatus(reservation.id, 'completed', user.id);
+      const { data, error } = await supabase.functions.invoke('complete-dispensing', {
+        body: { reservationId: reservation.id, operatorId: user.id },
+      });
+      if (error) throw error;
       notifySuccess('Fuel dispensing completed!');
-      // Reset the form
-      setCode('');
-      setState('idle');
-      setReservation(null);
+      resetVerification();
     } catch (error) {
+      console.error(error);
       notifyError('Failed to complete dispensing', error);
     } finally {
       setLoading(false);
