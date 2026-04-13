@@ -4,44 +4,73 @@ import { stationService } from '../../lib/supabase/database';
 import { reservationService } from '../../lib/supabase/database-advanced';
 import { notifyError } from '../../lib/utils/notifications';
 import type { Reservation } from '../../types/advanced';
-import { Calendar, Clock, Fuel, User, Phone, Car, CheckCircle, XCircle, AlertCircle, Search, Loader2, Filter } from 'lucide-react';
+import {
+  Calendar, Clock, Fuel, User, Phone, Car, CheckCircle, XCircle,
+  AlertCircle, Search, Loader2, Filter
+} from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+
+type DateRange = 'today' | 'week' | 'month';
+type StatusFilter = 'all' | 'confirmed' | 'arrived' | 'dispensing' | 'completed' | 'cancelled' | 'expired';
 
 export function OperatorReservations() {
   const { user } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'confirmed' | 'arrived' | 'dispensing' | 'completed' | 'cancelled' | 'expired'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateRange, setDateRange] = useState<DateRange>('today');
   const [search, setSearch] = useState('');
   const [stationId, setStationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      loadReservations();
+    if (user) loadReservations();
+  }, [user, dateRange]);
+
+  const getDateRangeFilter = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (dateRange === 'today') {
+      return { start: today.toISOString(), end: endOfDay.toISOString() };
+    } else if (dateRange === 'week') {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 7);
+      return { start: start.toISOString(), end: endOfDay.toISOString() };
+    } else {
+      const start = new Date(today);
+      start.setMonth(today.getMonth() - 1);
+      return { start: start.toISOString(), end: endOfDay.toISOString() };
     }
-  }, [user]);
+  };
 
   const loadReservations = async () => {
     if (!user) return;
-
     setLoading(true);
     try {
-      // Get operator's station
       const station = await stationService.getOperatorStation(user.id);
-      
       if (!station) {
         setLoading(false);
         return;
       }
-
       setStationId(station.id);
-
-      // Get all reservations for the station
-      const data = await reservationService.getStationReservations(station.id);
-      setReservations(data);
+      const allRes = await reservationService.getStationReservations(station.id);
+      const { start, end } = getDateRangeFilter();
+      const filteredByDate = allRes.filter(r => {
+        const slotDate = r.slot_date;
+        return slotDate >= start && slotDate <= end;
+      });
+      setReservations(filteredByDate);
     } catch (error) {
       notifyError('Failed to load reservations', error);
     } finally {
@@ -50,30 +79,23 @@ export function OperatorReservations() {
   };
 
   const filtered = reservations.filter(r => {
-    const matchesFilter = filter === 'all' || r.status === filter;
-    const matchesSearch = !search || 
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    const matchesSearch = !search ||
       r.driver_name?.toLowerCase().includes(search.toLowerCase()) ||
-      r.pickup_code.includes(search) || 
+      r.pickup_code.includes(search) ||
       r.driver_plate?.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+    return matchesStatus && matchesSearch;
+  }).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')); // recent first
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'confirmed': 
-        return { color: 'bg-yellow-100 text-yellow-700', icon: CheckCircle, label: 'Confirmed' };
-      case 'arrived':
-        return { color: 'bg-orange-100 text-orange-700', icon: Clock, label: 'Arrived' };
-      case 'dispensing':
-        return { color: 'bg-blue-100 text-blue-700', icon: Fuel, label: 'Dispensing' };
-      case 'completed':
-        return { color: 'bg-green-100 text-green-700', icon: CheckCircle, label: 'Completed' };
-      case 'cancelled':
-        return { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Cancelled' };
-      case 'expired':
-        return { color: 'bg-gray-100 text-gray-700', icon: AlertCircle, label: 'Expired' };
-      default:
-        return { color: 'bg-gray-100 text-gray-700', icon: AlertCircle, label: status };
+      case 'confirmed': return { color: 'bg-yellow-100 text-yellow-700', icon: CheckCircle, label: 'Confirmed' };
+      case 'arrived': return { color: 'bg-orange-100 text-orange-700', icon: Clock, label: 'Arrived' };
+      case 'dispensing': return { color: 'bg-blue-100 text-blue-700', icon: Fuel, label: 'Dispensing' };
+      case 'completed': return { color: 'bg-green-100 text-green-700', icon: CheckCircle, label: 'Completed' };
+      case 'cancelled': return { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Cancelled' };
+      case 'expired': return { color: 'bg-gray-100 text-gray-700', icon: AlertCircle, label: 'Expired' };
+      default: return { color: 'bg-gray-100 text-gray-700', icon: AlertCircle, label: status };
     }
   };
 
@@ -85,9 +107,7 @@ export function OperatorReservations() {
         <Skeleton className="h-12 w-64 mb-4" />
         <Skeleton className="h-32 mb-6" />
         <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-32" />)}
         </div>
       </div>
     );
@@ -99,9 +119,7 @@ export function OperatorReservations() {
         <Card className="p-12 text-center">
           <AlertCircle className="size-20 mx-auto mb-4 text-yellow-500" />
           <h3 className="text-2xl font-bold mb-2">No Station Assigned</h3>
-          <p className="text-gray-600">
-            You don't have a station assigned to your account yet.
-          </p>
+          <p className="text-gray-600">You don't have a station assigned to your account yet.</p>
         </Card>
       </div>
     );
@@ -110,33 +128,43 @@ export function OperatorReservations() {
   return (
     <div className="p-4 lg:p-8">
       <div className="mb-6">
-        <h1 className="text-gray-900 mb-1">Reservations</h1>
+        <h1 className="text-2xl font-bold mb-1">Reservations</h1>
         <p className="text-gray-600">Manage fuel reservations at your station</p>
       </div>
 
-      {/* Search & Filters */}
+      {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 mb-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input 
-              type="text" 
-              value={search} 
+            <input
+              type="text"
+              value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, pickup code, or plate number..."
-              className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none" 
+              className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
             />
           </div>
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2 mt-3 overflow-x-auto">
           {(['all', 'confirmed', 'arrived', 'dispensing', 'completed', 'cancelled', 'expired'] as const).map(f => {
             const count = f === 'all' ? reservations.length : reservations.filter(r => r.status === f).length;
             return (
-              <button 
-                key={f} 
-                onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors text-sm ${
-                  filter === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm ${
+                  statusFilter === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
@@ -146,7 +174,6 @@ export function OperatorReservations() {
         </div>
       </div>
 
-      {/* Reservations Table/Cards */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
           <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
@@ -169,14 +196,13 @@ export function OperatorReservations() {
               <tbody className="divide-y divide-gray-200">
                 {filtered.map(res => {
                   const sc = getStatusConfig(res.status);
+                  const Icon = sc.icon;
                   return (
                     <tr key={res.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <p className="text-gray-900 text-sm font-medium">{res.driver_name}</p>
                         <p className="text-xs text-gray-500">{res.driver_phone}</p>
-                        {res.driver_plate && (
-                          <p className="text-xs text-gray-500">🚗 {res.driver_plate}</p>
-                        )}
+                        {res.driver_plate && <p className="text-xs text-gray-500">🚗 {res.driver_plate}</p>}
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-900">{formatDate(res.slot_date!)}</p>
@@ -191,7 +217,7 @@ export function OperatorReservations() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${sc.color}`}>
-                          <sc.icon className="w-3 h-3" /> {sc.label}
+                          <Icon className="w-3 h-3" /> {sc.label}
                         </span>
                       </td>
                     </tr>
@@ -205,6 +231,7 @@ export function OperatorReservations() {
           <div className="lg:hidden space-y-3">
             {filtered.map(res => {
               const sc = getStatusConfig(res.status);
+              const Icon = sc.icon;
               return (
                 <div key={res.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
                   <div className="flex items-start justify-between mb-3">
@@ -220,7 +247,7 @@ export function OperatorReservations() {
                       )}
                     </div>
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${sc.color}`}>
-                      <sc.icon className="w-3 h-3" /> {sc.label}
+                      <Icon className="w-3 h-3" /> {sc.label}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
