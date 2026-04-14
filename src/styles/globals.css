@@ -183,3 +183,8 @@
 html {
   font-size: var(--font-size);
 }
+
+.custom-user-marker div {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6;
+  border-radius: 50%;
+}
