@@ -19,6 +19,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  // Force refresh when same date is selected again
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadTimeSlots = useCallback(async () => {
@@ -28,6 +29,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
       const dateStr = selectedDate.toISOString().split('T')[0];
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
       
+      // Get current time in local timezone (without UTC conversion)
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -35,9 +37,9 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
       
       const processedSlots = data.map(slot => {
         if (slot.slot_date === todayStr) {
-          const [endHour, endMinute] = slot.end_time.split(':').map(Number);
-          // If the slot's end time is before the current time, mark as closed
-          if (endHour < currentHour || (endHour === currentHour && endMinute < currentMinute)) {
+          const [startHour, startMinute] = slot.start_time.split(':').map(Number);
+          // If the slot's start time is before the current time, mark as closed
+          if (startHour < currentHour || (startHour === currentHour && startMinute <= currentMinute)) {
             return { 
               ...slot, 
               status: 'closed', 
@@ -62,11 +64,13 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     loadTimeSlots();
   }, [loadTimeSlots, refreshKey]);
 
+  // Handle date selection: if same date is clicked, increment refreshKey to reload
   const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setSelectedDate(date);
-      // Increment refreshKey to force reload even if same date
+    if (!date) return;
+    if (date.toDateString() === selectedDate.toDateString()) {
       setRefreshKey(prev => prev + 1);
+    } else {
+      setSelectedDate(date);
     }
   };
 
@@ -126,14 +130,12 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
             <Clock className="size-5 text-primary" />
             <span className="font-medium">Available Time Slots</span>
           </div>
-          {!loading && slots.length > 0 && (
-            <span className="text-xs text-gray-500">{slots.length} slots</span>
-          )}
+          {!loading && slots.length > 0 && <span className="text-xs text-gray-500">{slots.length} slots</span>}
         </div>
 
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
         ) : slots.length === 0 ? (
           <Card className="p-8 text-center">
@@ -143,7 +145,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
           </Card>
         ) : (
           <div className="space-y-3">
-            {slots.map((slot) => {
+            {slots.map(slot => {
               const isDisabled = slot.status === 'full' || slot.status === 'closed';
               return (
                 <Card
@@ -184,8 +186,11 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                           <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all ${
-                                slot.occupancy_percentage! >= 100 ? 'bg-red-500' :
-                                slot.occupancy_percentage! >= 75 ? 'bg-yellow-500' : 'bg-green-500'
+                                slot.occupancy_percentage! >= 100
+                                  ? 'bg-red-500'
+                                  : slot.occupancy_percentage! >= 75
+                                  ? 'bg-yellow-500'
+                                  : 'bg-green-500'
                               }`}
                               style={{ width: `${slot.occupancy_percentage}%` }}
                             />
@@ -205,7 +210,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                       )}
                     </>
                   )}
-
                   {slot.status === 'closed' && (
                     <div className="mt-3 pt-3 border-t border-gray-200 text-center text-gray-500 text-sm">
                       This time slot has already passed
@@ -221,22 +225,10 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
       <Card className="p-3 bg-gray-50">
         <p className="text-xs font-medium text-gray-700 mb-2">Status Legend:</p>
         <div className="flex flex-wrap gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="size-3 bg-green-500 rounded-full" />
-            <span className="text-gray-600">Available (&lt;75%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="size-3 bg-yellow-500 rounded-full" />
-            <span className="text-gray-600">Limited (≥75%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="size-3 bg-red-500 rounded-full" />
-            <span className="text-gray-600">Full (100%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="size-3 bg-gray-500 rounded-full" />
-            <span className="text-gray-600">Closed (Past)</span>
-          </div>
+          <div className="flex items-center gap-1.5"><div className="size-3 bg-green-500 rounded-full" /><span>Available (&lt;75%)</span></div>
+          <div className="flex items-center gap-1.5"><div className="size-3 bg-yellow-500 rounded-full" /><span>Limited (≥75%)</span></div>
+          <div className="flex items-center gap-1.5"><div className="size-3 bg-red-500 rounded-full" /><span>Full (100%)</span></div>
+          <div className="flex items-center gap-1.5"><div className="size-3 bg-gray-500 rounded-full" /><span>Closed (Passed)</span></div>
         </div>
       </Card>
     </div>
