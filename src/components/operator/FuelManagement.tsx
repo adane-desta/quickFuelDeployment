@@ -1,178 +1,300 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockStations } from '../../data/mockData';
-import { Droplets, Fuel, Save, CheckCircle, Loader2, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
+import { stationService, inventoryService } from '../../lib/supabase/database';
+import { notifyError } from '../../lib/utils/notifications';
+import type { Station, StationFuelInventory } from '../../types/advanced';
+import {
+  Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown,
+  Calendar, DollarSign, Gauge, Info, X, Loader2
+} from 'lucide-react';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Progress } from '../ui/progress';
+import { Skeleton } from '../ui/skeleton';
 
 export function FuelManagement() {
   const { user } = useAuth();
-  const station = mockStations.find(s => s.id === user?.stationId) || mockStations[0];
+  const [station, setStation] = useState<Station | null>(null);
+  const [inventory, setInventory] = useState<StationFuelInventory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFuel, setSelectedFuel] = useState<StationFuelInventory | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
-  const [petrolAvailable, setPetrolAvailable] = useState(station.petrolAvailable);
-  const [dieselAvailable, setDieselAvailable] = useState(station.dieselAvailable);
-  const [petrolStock, setPetrolStock] = useState(station.petrolStock || 0);
-  const [dieselStock, setDieselStock] = useState(station.dieselStock || 0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState('2026-02-15 09:00 AM');
+  useEffect(() => {
+    if (user) loadData();
+  }, [user]);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    setIsSaving(false);
-    setSaved(true);
-    setLastUpdated(new Date().toLocaleString());
-    setTimeout(() => setSaved(false), 3000);
+  const loadData = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const stationData = await stationService.getOperatorStation(user.id);
+      if (!stationData) {
+        setLoading(false);
+        return;
+      }
+      setStation(stationData);
+      const inventoryData = await inventoryService.getStationInventory(stationData.id);
+      setInventory(inventoryData);
+    } catch (error) {
+      notifyError('Failed to load fuel inventory', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStockLevel = (stock: number) => {
-    if (stock > 5000) return { label: 'Good', color: 'text-green-600', bg: 'bg-green-100', icon: TrendingUp };
-    if (stock > 2000) return { label: 'Medium', color: 'text-yellow-600', bg: 'bg-yellow-100', icon: TrendingDown };
+  const getStockLevel = (stock: number, min: number, max: number) => {
+    const percentage = (stock / max) * 100;
+    if (percentage >= 75) return { label: 'Good', color: 'text-green-600', bg: 'bg-green-100', icon: TrendingUp };
+    if (percentage >= 25) return { label: 'Moderate', color: 'text-yellow-600', bg: 'bg-yellow-100', icon: TrendingDown };
     return { label: 'Low', color: 'text-red-600', bg: 'bg-red-100', icon: AlertTriangle };
   };
 
-  const petrolLevel = getStockLevel(petrolStock);
-  const dieselLevel = getStockLevel(dieselStock);
+  const getStockPercentage = (current: number, max: number) => {
+    return Math.min((current / max) * 100, 100);
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Not recorded';
+    return new Date(dateStr).toLocaleString();
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 lg:p-8">
+        <Skeleton className="h-12 w-64 mb-4" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-48" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (!station) {
+    return (
+      <div className="p-4 lg:p-8">
+        <Card className="p-12 text-center">
+          <AlertTriangle className="size-16 mx-auto mb-4 text-yellow-500" />
+          <h3 className="text-2xl font-bold mb-2">No Station Assigned</h3>
+          <p className="text-gray-600">You are not assigned to any station.</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 lg:p-8 max-w-4xl">
+    <div className="p-4 lg:p-8 max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-gray-900 mb-1">Fuel Management</h1>
-        <p className="text-gray-600">Update fuel availability and stock levels for {station.name}</p>
-        <p className="text-xs text-gray-400 mt-1">Last updated: {lastUpdated}</p>
+        <h1 className="text-2xl font-bold mb-1">Fuel Management</h1>
+        <p className="text-gray-600">View current fuel inventory for {station.name}</p>
+        <p className="text-xs text-gray-500 mt-1">Read‑only view – updated automatically when fuel is dispensed</p>
       </div>
 
-      {saved && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600" />
-          <p className="text-green-800">Fuel information updated successfully! Changes are now visible to drivers.</p>
+      {inventory.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Fuel className="size-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">No fuel inventory configured for this station.</p>
+        </Card>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {inventory.map((item) => {
+            const stockLevel = getStockLevel(item.current_stock, item.minimum_stock_threshold, item.maximum_capacity);
+            const StockIcon = stockLevel.icon;
+            const percentage = getStockPercentage(item.current_stock, item.maximum_capacity);
+
+            return (
+              <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                <div className="p-5 space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-xl">
+                        <Fuel className="size-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{item.fuel_type_name}</h3>
+                        <p className="text-xs text-gray-500">{item.fuel_type_code}</p>
+                      </div>
+                    </div>
+                    <Badge className={`${stockLevel.bg} ${stockLevel.color}`}>
+                      <StockIcon className="size-3 mr-1" /> {stockLevel.label}
+                    </Badge>
+                  </div>
+
+                  {/* Stock Gauge */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Current Stock</span>
+                      <span className="font-bold">{item.current_stock.toLocaleString()} L</span>
+                    </div>
+                    <Progress value={percentage} className="h-2" />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>0 L</span>
+                      <span>{item.maximum_capacity.toLocaleString()} L</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="size-4 text-green-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Price / L</p>
+                        <p className="font-medium">ETB {item.effective_price?.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Droplet className="size-4 text-blue-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Min. Threshold</p>
+                        <p className="font-medium">{item.minimum_stock_threshold.toLocaleString()} L</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2"
+                    onClick={() => {
+                      setSelectedFuel(item);
+                      setShowModal(true);
+                    }}
+                  >
+                    <Info className="size-4 mr-2" />
+                    View Details
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Petrol */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center justify-between">
-            <h3 className="text-gray-900 flex items-center gap-2">
-              <Fuel className="w-5 h-5 text-blue-600" /> Petrol
-            </h3>
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${petrolLevel.bg} ${petrolLevel.color}`}>
-              {petrolLevel.label}
-            </span>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <span className={`w-3 h-3 rounded-full ${petrolAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-gray-900">Availability</span>
+      {/* Price Summary Card (all fuel types) */}
+      <Card className="mt-6 p-5">
+        <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+          <DollarSign className="size-5 text-green-600" />
+          Current Fuel Prices (ETB per Liter)
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {inventory.map(item => (
+            <div key={item.id} className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">{item.fuel_type_name}</p>
+              <p className="text-xl font-bold text-green-700">ETB {item.effective_price?.toFixed(2)}</p>
+            </div>
+          ))}
+          {inventory.length === 0 && <p className="text-gray-500 col-span-full">No fuel prices available</p>}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">Prices are set by the system administrator and cannot be modified here.</p>
+      </Card>
+
+      {/* Detailed Modal */}
+      {showModal && selectedFuel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Fuel className="size-6 text-blue-600" />
+                <h3 className="text-xl font-bold">{selectedFuel.fuel_type_name} – Details</h3>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={petrolAvailable}
-                  onChange={e => setPetrolAvailable(e.target.checked)} className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600" />
-              </label>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                <X className="size-5" />
+              </button>
             </div>
 
-            <div>
-              <label className="text-sm text-gray-600 mb-2 block">Stock Level (Liters)</label>
-              <input type="number" value={petrolStock}
-                onChange={e => setPetrolStock(Math.max(0, Number(e.target.value)))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                min="0" step="100" />
-              <div className="mt-2">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className={`h-2 rounded-full transition-all ${petrolStock > 5000 ? 'bg-green-500' : petrolStock > 2000 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(100, (petrolStock / 15000) * 100)}%` }} />
+            <div className="p-6 space-y-5">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500">Code</p>
+                  <p className="font-medium">{selectedFuel.fuel_type_code || '—'}</p>
                 </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>0L</span><span>15,000L</span>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500">Status</p>
+                  <Badge className={selectedFuel.is_available ? 'bg-green-600' : 'bg-red-600'}>
+                    {selectedFuel.is_available ? 'Available' : 'Unavailable'}
+                  </Badge>
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-2">
-              {[1000, 2000, 5000].map(v => (
-                <button key={v} onClick={() => setPetrolStock(v)}
-                  className="flex-1 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-700">
-                  {(v / 1000).toFixed(0)}K L
-                </button>
-              ))}
+              {/* Stock Details */}
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Droplet className="size-4 text-blue-600" /> Stock Information
+                </h4>
+                <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Current Stock</span>
+                    <span className="font-bold">{selectedFuel.current_stock.toLocaleString()} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Minimum Threshold</span>
+                    <span>{selectedFuel.minimum_stock_threshold.toLocaleString()} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Maximum Capacity</span>
+                    <span>{selectedFuel.maximum_capacity.toLocaleString()} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Available Space</span>
+                    <span>{(selectedFuel.maximum_capacity - selectedFuel.current_stock).toLocaleString()} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Fill Level</span>
+                    <span>{getStockPercentage(selectedFuel.current_stock, selectedFuel.maximum_capacity).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing */}
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <DollarSign className="size-4 text-green-600" /> Pricing
+                </h4>
+                <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Price per Liter</span>
+                    <span className="font-bold text-green-700">ETB {selectedFuel.effective_price?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Custom Price</span>
+                    <span>{selectedFuel.custom_price_per_liter ? `ETB ${selectedFuel.custom_price_per_liter.toFixed(2)}` : 'Not set'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Base Price</span>
+                    <span>ETB {selectedFuel.fuel_type?.base_price_per_liter?.toFixed(2) || '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Last Refill */}
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Calendar className="size-4 text-gray-600" /> Refill Information
+                </h4>
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Last Refilled</span>
+                    <span>{formatDate(selectedFuel.last_refilled_at)}</span>
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="text-gray-600">Last Updated</span>
+                    <span>{formatDate(selectedFuel.updated_at)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Info */}
+              <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800">
+                <p className="font-medium mb-1">Note</p>
+                <p>Stock levels update automatically when fuel is dispensed. This is a read‑only view.</p>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Diesel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-purple-50 px-4 py-3 border-b border-purple-100 flex items-center justify-between">
-            <h3 className="text-gray-900 flex items-center gap-2">
-              <Fuel className="w-5 h-5 text-purple-600" /> Diesel
-            </h3>
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${dieselLevel.bg} ${dieselLevel.color}`}>
-              {dieselLevel.label}
-            </span>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <span className={`w-3 h-3 rounded-full ${dieselAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-gray-900">Availability</span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={dieselAvailable}
-                  onChange={e => setDieselAvailable(e.target.checked)} className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600" />
-              </label>
-            </div>
-
-            <div>
-              <label className="text-sm text-gray-600 mb-2 block">Stock Level (Liters)</label>
-              <input type="number" value={dieselStock}
-                onChange={e => setDieselStock(Math.max(0, Number(e.target.value)))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
-                min="0" step="100" />
-              <div className="mt-2">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className={`h-2 rounded-full transition-all ${dieselStock > 5000 ? 'bg-green-500' : dieselStock > 2000 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(100, (dieselStock / 15000) * 100)}%` }} />
-                </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>0L</span><span>15,000L</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {[1000, 2000, 5000].map(v => (
-                <button key={v} onClick={() => setDieselStock(v)}
-                  className="flex-1 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-700">
-                  {(v / 1000).toFixed(0)}K L
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Price Information */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <h3 className="text-gray-900 mb-3">Current Fuel Prices (ETB per Liter)</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-3 bg-blue-50 rounded-lg text-center">
-            <p className="text-xs text-gray-500">Petrol</p>
-            <p className="text-2xl text-blue-700">65.00</p>
-          </div>
-          <div className="p-3 bg-purple-50 rounded-lg text-center">
-            <p className="text-xs text-gray-500">Diesel</p>
-            <p className="text-2xl text-purple-700">58.00</p>
-          </div>
-        </div>
-        <p className="text-xs text-gray-500 mt-2">Prices are set by the government and cannot be modified</p>
-      </div>
-
-      {/* Save Button */}
-      <button onClick={handleSave} disabled={isSaving}
-        className="w-full lg:w-auto py-3 px-8 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
-        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Save Changes</>}
-      </button>
+      )}
     </div>
   );
 }
