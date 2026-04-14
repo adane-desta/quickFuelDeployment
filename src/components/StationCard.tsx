@@ -7,7 +7,6 @@ interface StationCardProps {
 }
 
 export function StationCard({ station, onReserve }: StationCardProps) {
-  console.log('DEBUG: Station passed to reservation:', station);
   const queueColors = {
     Short: 'bg-green-100 text-green-700 border-green-300',
     Medium: 'bg-yellow-100 text-yellow-700 border-yellow-300',
@@ -20,7 +19,9 @@ export function StationCard({ station, onReserve }: StationCardProps) {
     Long: 'bg-red-500',
   };
 
-  const hasFuel = station.availableFuels && station.availableFuels.length > 0;
+  // Determine available fuels (supports both old and new station objects)
+  const availableFuels = station.availableFuels || 
+    (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -30,8 +31,15 @@ export function StationCard({ station, onReserve }: StationCardProps) {
           <h3 className="text-gray-900 mb-1">{station.name}</h3>
           <div className="flex items-center gap-1.5 text-gray-600">
             <MapPin className="w-4 h-4" />
-            <span className="text-sm">{station.distance} km away</span>
+            <span className="text-sm">{station.distance?.toFixed(1) || '?'} km away</span>
           </div>
+          {/* Travel time (added) */}
+          {station.travelTime !== undefined && (
+            <div className="flex items-center gap-1.5 text-gray-600 mt-0.5">
+              <Clock className="w-3 h-3" />
+              <span className="text-xs">~{station.travelTime} min drive</span>
+            </div>
+          )}
         </div>
         <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <Navigation className="w-5 h-5 text-blue-600" />
@@ -51,7 +59,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
           <Clock className="w-4 h-4 text-gray-500" />
           <div>
             <p className="text-xs text-gray-500">Wait Time</p>
-            <p className="text-gray-900">~{station.waitTime} min</p>
+            <p className="text-gray-900">~{station.waitTime || '?'} min</p>
           </div>
         </div>
 
@@ -60,8 +68,8 @@ export function StationCard({ station, onReserve }: StationCardProps) {
           <div>
             <p className="text-xs text-gray-500">Available</p>
             <div className="flex flex-wrap gap-1">
-              {hasFuel ? (
-                station.availableFuels.map(fuel => (
+              {availableFuels.length > 0 ? (
+                availableFuels.map(fuel => (
                   <span key={fuel} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                     {fuel}
                   </span>
@@ -78,7 +86,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
       <div className="flex gap-2">
         <button 
           className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          disabled={!hasFuel}
+          disabled={availableFuels.length === 0}
           onClick={() => onReserve?.(station)}
         >
           Reserve Fuel
