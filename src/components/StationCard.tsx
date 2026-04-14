@@ -20,6 +20,8 @@ export function StationCard({ station, onReserve }: StationCardProps) {
     Long: 'bg-red-500',
   };
 
+  const hasFuel = station.availableFuels && station.availableFuels.length > 0;
+
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
       {/* Header */}
@@ -57,14 +59,14 @@ export function StationCard({ station, onReserve }: StationCardProps) {
           <Fuel className="w-4 h-4 text-gray-500" />
           <div>
             <p className="text-xs text-gray-500">Available</p>
-            <div className="flex gap-1">
-              {station.petrolAvailable && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Petrol</span>
-              )}
-              {station.dieselAvailable && (
-                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Diesel</span>
-              )}
-              {!station.petrolAvailable && !station.dieselAvailable && (
+            <div className="flex flex-wrap gap-1">
+              {hasFuel ? (
+                station.availableFuels.map(fuel => (
+                  <span key={fuel} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                    {fuel}
+                  </span>
+                ))
+              ) : (
                 <span className="text-xs text-gray-500">None</span>
               )}
             </div>
@@ -76,7 +78,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
       <div className="flex gap-2">
         <button 
           className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          disabled={!station.petrolAvailable && !station.dieselAvailable}
+          disabled={!hasFuel}
           onClick={() => onReserve?.(station)}
         >
           Reserve Fuel
