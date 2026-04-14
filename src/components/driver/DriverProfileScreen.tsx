@@ -85,7 +85,7 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
             <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-3">
               <User className="w-12 h-12 text-white" />
             </div>
-            <h2 className="text-gray-900 mb-1">{user?.fullName}</h2>
+            <h2 className="text-gray-900 mb-1">{user?.full_name}</h2>
             <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm mb-2">
               <User className="w-4 h-4" /> Driver
             </span>
@@ -156,7 +156,7 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                     <User className="w-5 h-5 text-gray-400" />
                     <div className="flex-1">
                       <p className="text-xs text-gray-500">Full Name</p>
-                      <p className="text-gray-900">{user?.fullName}</p>
+                      <p className="text-gray-900">{user?.full_name}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -225,14 +225,14 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                     <Car className="w-5 h-5 text-gray-400" />
                     <div className="flex-1">
                       <p className="text-xs text-gray-500">Vehicle Model</p>
-                      <p className="text-gray-900">{user?.vehicleModel || 'Not set'}</p>
+                      <p className="text-gray-900">{user?.vehicle_model || 'Not set'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-5 h-5 flex items-center justify-center"><span className="text-gray-400">#</span></div>
                     <div className="flex-1">
                       <p className="text-xs text-gray-500">Plate Number</p>
-                      <p className="text-gray-900">{user?.plateNumber || 'Not set'}</p>
+                      <p className="text-gray-900">{user?.plate_number || 'Not set'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

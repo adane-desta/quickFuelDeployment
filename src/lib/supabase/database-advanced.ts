@@ -315,6 +315,7 @@ export const reservationService = {
     status: string,
     operatorId?: string
   ): Promise<boolean> {
+    console.log('updateReservationStatus called with:', { reservationId, status, operatorId });
     try {
       const updates: any = { status };
 
@@ -330,11 +331,12 @@ export const reservationService = {
         updates.cancelled_at = new Date().toISOString();
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('reservations')
         .update(updates)
-        .eq('id', reservationId);
-
+        .eq('id', reservationId)
+        .select()
+      console.log('Supabase response:', { data, error });
       if (error) throw error;
       return true;
     } catch (error) {
