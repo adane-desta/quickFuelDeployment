@@ -16,13 +16,13 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [editData, setEditData] = useState({
-    fullName: user?.full_name || '',
+    full_name: user?.full_name || '',
     email: user?.email || '',
     phone: user?.phone || '',
     address: user?.address || '',
-    vehicleModel: user?.vehicleModel || '',
-    plateNumber: user?.plateNumber || '',
-    preferredFuelType: user?.preferredFuelType || 'Petrol',
+    vehicle_model: user?.vehicle_model || '',
+    plate_number: user?.plate_number || '',
+    preferred_fuel_type: user?.preferred_fuel_type || 'Petrol',
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -131,7 +131,7 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500">Full Name</label>
-                    <input value={editData.fullName} onChange={e => setEditData({...editData, fullName: e.target.value})}
+                    <input value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none" />
                   </div>
                   <div>
@@ -199,21 +199,21 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500">Vehicle Model</label>
-                    <input value={editData.vehicleModel} onChange={e => setEditData({...editData, vehicleModel: e.target.value})}
+                    <input value={editData.vehicle_model} onChange={e => setEditData({...editData, vehicle_model: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Plate Number</label>
-                    <input value={editData.plateNumber} onChange={e => setEditData({...editData, plateNumber: e.target.value})}
+                    <input value={editData.plate_number} onChange={e => setEditData({...editData, plate_number: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Preferred Fuel</label>
                     <div className="flex gap-2">
                       {(['Petrol', 'Diesel'] as const).map(f => (
-                        <button key={f} onClick={() => setEditData({...editData, preferredFuelType: f})}
+                        <button key={f} onClick={() => setEditData({...editData, preferred_fuel_type: f})}
                           className={`flex-1 py-2 rounded-lg border-2 transition-colors ${
-                            editData.preferredFuelType === f ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                            editData.preferred_fuel_type === f ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
                           }`}>{f}</button>
                       ))}
                     </div>
@@ -240,7 +240,7 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                     <div className="flex-1">
                       <p className="text-xs text-gray-500">Preferred Fuel Type</p>
                       <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-sm rounded">
-                        {user?.preferredFuelType || 'Petrol'}
+                        {user?.preferred_fuel_type || 'Petrol'}
                       </span>
                     </div>
                   </div>
