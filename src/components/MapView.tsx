@@ -2,8 +2,6 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Station } from '../../types';
-import { MapPin } from 'lucide-react';
-
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -75,11 +73,18 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
       `;
       const marker = L.marker([station.latitude, station.longitude]).addTo(mapRef.current!);
       marker.bindPopup(popupContent);
+      // Use popupopen event to attach click handler
       marker.on('popupopen', () => {
-        const btn = document.querySelector(`button[data-station-id="${station.id}"]`);
-        if (btn && hasFuel) {
-          btn.addEventListener('click', () => onReserve(station));
-        }
+        // Wait a moment for the popup DOM to be fully rendered
+        setTimeout(() => {
+          const popupNode = marker.getPopup()?.getElement();
+          if (popupNode && hasFuel) {
+            const btn = popupNode.querySelector('button');
+            if (btn) {
+              btn.onclick = () => onReserve(station);
+            }
+          }
+        }, 50);
       });
       markersRef.current.push(marker);
     });
