@@ -1,12 +1,4 @@
-// =====================================================
-// TIME SLOT SELECTOR - DRIVER COMPONENT
-// =====================================================
-// Mobile-first time slot selection with date picker
-// Shows availability, capacity, and pricing
-// Disables slots that have already passed for today
-// =====================================================
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Users, AlertCircle } from 'lucide-react';
 import { timeSlotService } from '../../lib/supabase/database-advanced';
 import { notifyError } from '../../lib/utils/notifications';
@@ -27,21 +19,15 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Load slots when date changes
-  useEffect(() => {
-    if (stationId && selectedDate) {
-      loadTimeSlots();
-    }
-  }, [stationId, selectedDate]);
-
-  const loadTimeSlots = async () => {
+  const loadTimeSlots = useCallback(async () => {
+    if (!stationId) return;
     setLoading(true);
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
       
-      // Process slots: mark past slots as 'closed' for today's date
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -70,18 +56,24 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     } finally {
       setLoading(false);
     }
+  }, [stationId, selectedDate]);
+
+  useEffect(() => {
+    loadTimeSlots();
+  }, [loadTimeSlots, refreshKey]);
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+      // Increment refreshKey to force reload even if same date
+      setRefreshKey(prev => prev + 1);
+    }
   };
 
   const getSlotStatusBadge = (slot: TimeSlot) => {
-    if (slot.status === 'full') {
-      return <Badge variant="destructive" className="text-xs">Full</Badge>;
-    }
-    if (slot.status === 'limited') {
-      return <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">Limited</Badge>;
-    }
-    if (slot.status === 'closed') {
-      return <Badge variant="secondary" className="text-xs bg-gray-500 text-white">Closed</Badge>;
-    }
+    if (slot.status === 'full') return <Badge variant="destructive" className="text-xs">Full</Badge>;
+    if (slot.status === 'limited') return <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">Limited</Badge>;
+    if (slot.status === 'closed') return <Badge variant="secondary" className="text-xs bg-gray-500 text-white">Closed</Badge>;
     return <Badge variant="default" className="text-xs bg-green-500">Available</Badge>;
   };
 
@@ -93,7 +85,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  // Disable past dates
   const disabledDates = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -102,13 +93,11 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h3 className="text-lg font-semibold mb-1">Select Date & Time</h3>
         <p className="text-sm text-gray-600">Choose your preferred time slot</p>
       </div>
 
-      {/* Date Picker */}
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">
           <Calendar className="size-5 text-primary" />
@@ -117,7 +106,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         <CalendarUI
           mode="single"
           selected={selectedDate}
-          onSelect={(date) => date && setSelectedDate(date)}
+          onSelect={handleDateSelect}
           disabled={disabledDates}
           className="rounded-md border w-full"
         />
@@ -131,7 +120,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         </p>
       </Card>
 
-      {/* Time Slots */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -145,17 +133,13 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
         ) : slots.length === 0 ? (
           <Card className="p-8 text-center">
             <AlertCircle className="size-12 mx-auto mb-3 text-gray-400" />
             <p className="font-medium text-gray-700 mb-1">No Available Slots</p>
-            <p className="text-sm text-gray-500">
-              Please select a different date
-            </p>
+            <p className="text-sm text-gray-500">Please select a different date</p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -192,23 +176,16 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                         <div className="flex items-center gap-2 text-sm">
                           <Users className="size-4 text-gray-400" />
                           <span className="text-gray-600">
-                            <span className="font-medium text-gray-900">
-                              {slot.available_spots}
-                            </span>
+                            <span className="font-medium text-gray-900">{slot.available_spots}</span>
                             {' '}/{' '}{slot.max_capacity} spots available
                           </span>
                         </div>
-
-                        {/* Occupancy Bar */}
                         <div className="flex items-center gap-2">
                           <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all ${
-                                slot.occupancy_percentage! >= 100
-                                  ? 'bg-red-500'
-                                  : slot.occupancy_percentage! >= 75
-                                  ? 'bg-yellow-500'
-                                  : 'bg-green-500'
+                                slot.occupancy_percentage! >= 100 ? 'bg-red-500' :
+                                slot.occupancy_percentage! >= 75 ? 'bg-yellow-500' : 'bg-green-500'
                               }`}
                               style={{ width: `${slot.occupancy_percentage}%` }}
                             />
@@ -218,7 +195,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                           </span>
                         </div>
                       </div>
-
                       {selectedSlotId === slot.id && (
                         <div className="mt-3 pt-3 border-t border-primary/20">
                           <div className="flex items-center gap-2 text-sm text-primary">
@@ -242,7 +218,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         )}
       </div>
 
-      {/* Legend */}
       <Card className="p-3 bg-gray-50">
         <p className="text-xs font-medium text-gray-700 mb-2">Status Legend:</p>
         <div className="flex flex-wrap gap-3 text-xs">
