@@ -42,12 +42,6 @@ export function ListView({ stations, onReserve, onReportQueue }: ListViewProps) 
                   <Clock className="w-4 h-4" />
                   <span>{station.distance ? station.distance.toFixed(1) : '?'} km away</span>
                 </div>
-                {station.travelTime !== undefined && (
-                  <div className="flex items-center gap-1 text-sm text-gray-500">
-                    <Clock className="w-4 h-4" />
-                    <span>~{station.travelTime} min drive</span>
-                  </div>
-                )}
                 <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getQueueColor(station.queueLength)}`}>
                   <Users className="w-3 h-3" />
                   <span>{station.queueLength}</span>

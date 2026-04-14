@@ -10,7 +10,6 @@ import { CompleteReservationFlow } from '../reservation/CompleteReservationFlow'
 import { DriverReservationsScreen } from './DriverReservationsScreen';
 import { DriverNotificationsScreen } from './DriverNotificationsScreen';
 import { DriverProfileScreen } from './DriverProfileScreen';
-import { ReportQueueModal } from '../ReportQueueModal';
 import { Bell, Home, Calendar, User, Fuel, LogOut, Menu, X } from 'lucide-react';
 import { Station } from '../../types';
 import { db } from '../../lib/supabase/services';
