@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState , useEffect , useRef} from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft, Check, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,6 +41,13 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
     totalPrice: number;
   } | null>(null);
   const [reservationId, setReservationId] = useState<string | null>(null);
+  
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [currentStep]);
 
   const handleStationSelect = (station: Station) => {
     setSelectedStation(station);
@@ -173,7 +180,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6">
           {currentStep === 1 && !initialStation && (
           <StationSelection onSelectStation={handleStationSelect} />
         )}
