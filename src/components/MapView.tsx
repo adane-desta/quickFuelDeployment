@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Station } from '../../types';
+import { MapPin } from 'lucide-react';
 
-// Fix for default marker icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -45,12 +45,9 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
 
   useEffect(() => {
     if (!mapRef.current || !userLocation) return;
-
-    // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Add user location marker
     const userMarker = L.marker([userLocation.lat, userLocation.lng], {
       icon: L.divIcon({
         className: 'custom-user-marker',
@@ -62,11 +59,10 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
     userMarker.bindPopup('Your location');
     markersRef.current.push(userMarker);
 
-    // Add station markers
     stations.forEach(station => {
       const hasFuel = station.availableFuels && station.availableFuels.length > 0;
       const popupContent = `
-        <div class="p-2 min-w-[200px]">
+        <div class="p-2 min-w-[220px]">
           <h3 class="font-bold text-gray-900">${station.name}</h3>
           <p class="text-sm text-gray-600">${station.address || 'Address not available'}</p>
           <p class="text-sm text-gray-600 mt-1">Distance: ${station.distance ? station.distance.toFixed(1) : '?'} km</p>
@@ -74,7 +70,7 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
           <div class="flex flex-wrap gap-1 mt-2">
             ${station.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}
           </div>
-          <button class="mt-3 w-full ${hasFuel ? 'bg-blue-600' : 'bg-gray-400'} text-white py-1 rounded-md text-sm" data-station-id="${station.id}" ${!hasFuel ? 'disabled' : ''}>Reserve Fuel</button>
+          <button class="mt-3 w-full bg-blue-600 text-white py-1 rounded-md text-sm ${!hasFuel ? 'opacity-50 cursor-not-allowed' : ''}" data-station-id="${station.id}" ${!hasFuel ? 'disabled' : ''}>Reserve Fuel</button>
         </div>
       `;
       const marker = L.marker([station.latitude, station.longitude]).addTo(mapRef.current!);
@@ -88,7 +84,6 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
       markersRef.current.push(marker);
     });
 
-    // Fit bounds
     if (stations.length > 0) {
       const bounds = L.latLngBounds([userLocation.lat, userLocation.lng]);
       stations.forEach(s => bounds.extend([s.latitude, s.longitude]));
@@ -96,5 +91,5 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
     }
   }, [stations, userLocation, onReserve]);
 
-  return <div id="map" className="w-full h-full" />;
+  return <div id="map" className="w-full h-full relative z-0" />;
 }
