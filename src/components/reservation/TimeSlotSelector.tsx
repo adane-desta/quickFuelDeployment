@@ -3,6 +3,7 @@
 // =====================================================
 // Mobile-first time slot selection with date picker
 // Shows availability, capacity, and pricing
+// Disables slots that have already passed for today
 // =====================================================
 
 import React, { useState, useEffect } from 'react';
@@ -23,7 +24,6 @@ interface TimeSlotSelectorProps {
 }
 
 export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: TimeSlotSelectorProps) {
-
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,18 +32,38 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   useEffect(() => {
     if (stationId && selectedDate) {
       loadTimeSlots();
-    } else {
-      console.log('Skipping loadTimeSlots because stationId or selectedDate is falsy');
     }
   }, [stationId, selectedDate]);
 
   const loadTimeSlots = async () => {
-
     setLoading(true);
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
-      setSlots(data);
+      
+      // Process slots: mark past slots as 'closed' for today's date
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      const processedSlots = data.map(slot => {
+        if (slot.slot_date === todayStr) {
+          const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+          // If the slot's end time is before the current time, mark as closed
+          if (endHour < currentHour || (endHour === currentHour && endMinute < currentMinute)) {
+            return { 
+              ...slot, 
+              status: 'closed', 
+              available_spots: 0,
+              occupancy_percentage: 100 
+            };
+          }
+        }
+        return slot;
+      });
+      
+      setSlots(processedSlots);
     } catch (error) {
       notifyError('Failed to load time slots', error);
       setSlots([]);
@@ -58,6 +78,9 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     }
     if (slot.status === 'limited') {
       return <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">Limited</Badge>;
+    }
+    if (slot.status === 'closed') {
+      return <Badge variant="secondary" className="text-xs bg-gray-500 text-white">Closed</Badge>;
     }
     return <Badge variant="default" className="text-xs bg-green-500">Available</Badge>;
   };
@@ -136,72 +159,85 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
           </Card>
         ) : (
           <div className="space-y-3">
-            {slots.map((slot) => (
-              <Card
-                key={slot.id}
-                className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedSlotId === slot.id
-                    ? 'border-2 border-primary bg-primary/5'
-                    : 'border border-gray-200'
-                } ${slot.status === 'full' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => slot.status !== 'full' && onSelectSlot(slot)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Clock className="size-5 text-primary" />
+            {slots.map((slot) => {
+              const isDisabled = slot.status === 'full' || slot.status === 'closed';
+              return (
+                <Card
+                  key={slot.id}
+                  className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                    selectedSlotId === slot.id
+                      ? 'border-2 border-primary bg-primary/5'
+                      : 'border border-gray-200'
+                  } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => !isDisabled && onSelectSlot(slot)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Clock className="size-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-base">
+                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        </p>
+                        <p className="text-xs text-gray-500">1 hour slot</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-base">
-                        {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                      </p>
-                      <p className="text-xs text-gray-500">1 hour slot</p>
-                    </div>
-                  </div>
-                  {getSlotStatusBadge(slot)}
-                </div>
-
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="size-4 text-gray-400" />
-                    <span className="text-gray-600">
-                      <span className="font-medium text-gray-900">
-                        {slot.available_spots}
-                      </span>
-                      {' '}/{' '}{slot.max_capacity} spots available
-                    </span>
+                    {getSlotStatusBadge(slot)}
                   </div>
 
-                  {/* Occupancy Bar */}
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          slot.occupancy_percentage! >= 100
-                            ? 'bg-red-500'
-                            : slot.occupancy_percentage! >= 75
-                            ? 'bg-yellow-500'
-                            : 'bg-green-500'
-                        }`}
-                        style={{ width: `${slot.occupancy_percentage}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500 min-w-[40px]">
-                      {Math.round(slot.occupancy_percentage!)}%
-                    </span>
-                  </div>
-                </div>
+                  {slot.status !== 'closed' && slot.status !== 'full' && (
+                    <>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Users className="size-4 text-gray-400" />
+                          <span className="text-gray-600">
+                            <span className="font-medium text-gray-900">
+                              {slot.available_spots}
+                            </span>
+                            {' '}/{' '}{slot.max_capacity} spots available
+                          </span>
+                        </div>
 
-                {selectedSlotId === slot.id && (
-                  <div className="mt-3 pt-3 border-t border-primary/20">
-                    <div className="flex items-center gap-2 text-sm text-primary">
-                      <div className="size-2 bg-primary rounded-full animate-pulse" />
-                      <span className="font-medium">Selected</span>
+                        {/* Occupancy Bar */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                slot.occupancy_percentage! >= 100
+                                  ? 'bg-red-500'
+                                  : slot.occupancy_percentage! >= 75
+                                  ? 'bg-yellow-500'
+                                  : 'bg-green-500'
+                              }`}
+                              style={{ width: `${slot.occupancy_percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 min-w-[40px]">
+                            {Math.round(slot.occupancy_percentage!)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {selectedSlotId === slot.id && (
+                        <div className="mt-3 pt-3 border-t border-primary/20">
+                          <div className="flex items-center gap-2 text-sm text-primary">
+                            <div className="size-2 bg-primary rounded-full animate-pulse" />
+                            <span className="font-medium">Selected</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {slot.status === 'closed' && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 text-center text-gray-500 text-sm">
+                      This time slot has already passed
                     </div>
-                  </div>
-                )}
-              </Card>
-            ))}
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -221,6 +257,10 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
           <div className="flex items-center gap-1.5">
             <div className="size-3 bg-red-500 rounded-full" />
             <span className="text-gray-600">Full (100%)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="size-3 bg-gray-500 rounded-full" />
+            <span className="text-gray-600">Closed (Past)</span>
           </div>
         </div>
       </Card>
