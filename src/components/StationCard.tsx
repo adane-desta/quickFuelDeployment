@@ -19,9 +19,19 @@ export function StationCard({ station, onReserve }: StationCardProps) {
     Long: 'bg-red-500',
   };
 
-  // Determine available fuels (supports both old and new station objects)
+  const getWaitTimeFromQueue = (queue: string) => {
+    switch (queue) {
+      case 'Short': return '5-10';
+      case 'Medium': return '15-30';
+      case 'Long': return '30+';
+      default: return '?';
+    }
+  };
+
   const availableFuels = station.availableFuels || 
     (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
+
+  const waitTime = station.waitTime || getWaitTimeFromQueue(station.queueLength);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -33,7 +43,6 @@ export function StationCard({ station, onReserve }: StationCardProps) {
             <MapPin className="w-4 h-4" />
             <span className="text-sm">{station.distance?.toFixed(1) || '?'} km away</span>
           </div>
-          {/* Travel time (added) */}
           {station.travelTime !== undefined && (
             <div className="flex items-center gap-1.5 text-gray-600 mt-0.5">
               <Clock className="w-3 h-3" />
@@ -59,7 +68,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
           <Clock className="w-4 h-4 text-gray-500" />
           <div>
             <p className="text-xs text-gray-500">Wait Time</p>
-            <p className="text-gray-900">~{station.waitTime || '?'} min</p>
+            <p className="text-gray-900">~{waitTime} min</p>
           </div>
         </div>
 
