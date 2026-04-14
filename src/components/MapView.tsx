@@ -2,9 +2,8 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Station } from '../../types';
-import { MapPin } from 'lucide-react';
 
-// Fix for default marker icons in Leaflet with Vite
+// Fix for default marker icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -28,7 +27,6 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
 
   useEffect(() => {
     if (!mapRef.current && userLocation) {
-      // Initialize map centered on user location
       const map = L.map('map').setView([userLocation.lat, userLocation.lng], 13);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB',
@@ -37,7 +35,6 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
       }).addTo(map);
       mapRef.current = map;
     }
-
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
@@ -62,11 +59,12 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
         popupAnchor: [0, -8],
       }),
     }).addTo(mapRef.current);
-    userMarker.bindPopup('Your location').openPopup();
+    userMarker.bindPopup('Your location');
     markersRef.current.push(userMarker);
 
     // Add station markers
     stations.forEach(station => {
+      const hasFuel = station.availableFuels && station.availableFuels.length > 0;
       const popupContent = `
         <div class="p-2 min-w-[200px]">
           <h3 class="font-bold text-gray-900">${station.name}</h3>
@@ -76,21 +74,21 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
           <div class="flex flex-wrap gap-1 mt-2">
             ${station.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}
           </div>
-          <button class="mt-3 w-full bg-blue-600 text-white py-1 rounded-md text-sm" data-station-id="${station.id}">Reserve Fuel</button>
+          <button class="mt-3 w-full ${hasFuel ? 'bg-blue-600' : 'bg-gray-400'} text-white py-1 rounded-md text-sm" data-station-id="${station.id}" ${!hasFuel ? 'disabled' : ''}>Reserve Fuel</button>
         </div>
       `;
       const marker = L.marker([station.latitude, station.longitude]).addTo(mapRef.current!);
       marker.bindPopup(popupContent);
       marker.on('popupopen', () => {
         const btn = document.querySelector(`button[data-station-id="${station.id}"]`);
-        if (btn) {
+        if (btn && hasFuel) {
           btn.addEventListener('click', () => onReserve(station));
         }
       });
       markersRef.current.push(marker);
     });
 
-    // Fit bounds to include all markers
+    // Fit bounds
     if (stations.length > 0) {
       const bounds = L.latLngBounds([userLocation.lat, userLocation.lng]);
       stations.forEach(s => bounds.extend([s.latitude, s.longitude]));
