@@ -1,24 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { reservationService } from '../../lib/supabase/database-advanced';
-import { notifications, notifyError } from '../../lib/utils/notifications';
-import { Calendar, MapPin, Fuel, Clock, CheckCircle, XCircle, AlertCircle, Navigation, X, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase/client';
+import { notifications, notifyError, notifySuccess } from '../../lib/utils/notifications';
+import { Calendar, MapPin, Fuel, Clock, CheckCircle, XCircle, AlertCircle, X, Loader2, RefreshCw } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 
-// Helper type for the reservation data from the service
 type DriverReservation = Awaited<ReturnType<typeof reservationService.getDriverReservations>>[number];
 
 export function DriverReservationsScreen() {
   const { user } = useAuth();
-  const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled' | 'pending'>('all');
+  const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled' | 'pending' | 'expired' | 'pending_refund' | 'refunded'>('all');
   const [reservations, setReservations] = useState<DriverReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<DriverReservation | null>(null);
   const [showQR, setShowQR] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [requestingRefund, setRequestingRefund] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) loadReservations();
@@ -36,43 +37,28 @@ export function DriverReservationsScreen() {
     }
   };
 
-  const filteredReservations = reservations.filter(reservation => {
-    if (filter === 'all') return true;
-    return reservation.status === filter;
-  });
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return { color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle, label: 'Confirmed' };
-      case 'completed':
-        return { color: 'bg-blue-100 text-blue-700 border-blue-300', icon: CheckCircle, label: 'Completed' };
-      case 'cancelled':
-        return { color: 'bg-red-100 text-red-700 border-red-300', icon: XCircle, label: 'Cancelled' };
-      case 'pending':
-        return { color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: AlertCircle, label: 'Pending' };
-      case 'expired':
-        return { color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle, label: 'Expired' };
-      default:
-        return { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: AlertCircle, label: status };
+  const handleRequestRefund = async (reservationId: string) => {
+    if (!confirm('Are you sure you want to request a refund? An 8% service fee will be deducted.')) return;
+    setRequestingRefund(reservationId);
+    try {
+      const { error } = await supabase.functions.invoke('request-refund', {
+        body: { reservationId },
+      });
+      if (error) throw error;
+      notifySuccess('Refund request submitted. Awaiting approval.');
+      await loadReservations();
+    } catch (error) {
+      notifyError('Failed to request refund', error);
+    } finally {
+      setRequestingRefund(null);
     }
   };
 
   const handleCancel = async (reservationId: string) => {
-    if (!user) return;
     if (!confirm('Are you sure you want to cancel this reservation?')) return;
     setCancelling(reservationId);
     try {
-      const success = await reservationService.cancelReservation(
-        reservationId,
-        'Cancelled by driver',
-        user.id
-      );
+      const success = await reservationService.cancelReservation(reservationId, 'Cancelled by driver', user.id);
       if (success) {
         await loadReservations();
         notifications.reservation.cancelled();
@@ -86,7 +72,27 @@ export function DriverReservationsScreen() {
 
   const handleCopyPickupCode = (code: string) => {
     navigator.clipboard.writeText(code);
-    notifications.reservation.created('Pickup code copied to clipboard!');
+    notifySuccess('Pickup code copied to clipboard!');
+  };
+
+  const filteredReservations = reservations.filter(r => filter === 'all' || r.status === filter);
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'confirmed': return { color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle, label: 'Confirmed' };
+      case 'completed': return { color: 'bg-blue-100 text-blue-700 border-blue-300', icon: CheckCircle, label: 'Completed' };
+      case 'cancelled': return { color: 'bg-red-100 text-red-700 border-red-300', icon: XCircle, label: 'Cancelled' };
+      case 'pending': return { color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: AlertCircle, label: 'Pending' };
+      case 'expired': return { color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle, label: 'Expired' };
+      case 'pending_refund': return { color: 'bg-purple-100 text-purple-700 border-purple-300', icon: AlertCircle, label: 'Pending Refund' };
+      case 'refunded': return { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: CheckCircle, label: 'Refunded' };
+      default: return { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: AlertCircle, label: status };
+    }
   };
 
   if (loading) {
@@ -99,19 +105,18 @@ export function DriverReservationsScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 lg:px-6 py-6 shadow-md">
         <h1 className="text-white mb-2">My Reservations</h1>
         <p className="text-blue-100 text-sm">View and manage your fuel reservations</p>
       </div>
 
-      {/* Filter Tabs */}
       <div className="bg-white px-4 lg:px-6 py-3 border-b border-gray-200">
         <div className="flex gap-2 overflow-x-auto">
-          {(['all', 'confirmed', 'pending', 'completed', 'cancelled'] as const).map(f => {
-            const count = f === 'all' ? reservations.length : reservations.filter(r => r.status === f).length;
+          {(['all', 'confirmed', 'pending', 'completed', 'expired', 'pending_refund', 'refunded', 'cancelled'] as const).map(f => {
+            const count = reservations.filter(r => r.status === f).length;
             const colors: Record<string, string> = {
-              all: 'bg-blue-600', confirmed: 'bg-green-600', pending: 'bg-yellow-600', completed: 'bg-blue-600', cancelled: 'bg-red-600'
+              all: 'bg-blue-600', confirmed: 'bg-green-600', pending: 'bg-yellow-600', completed: 'bg-blue-600',
+              expired: 'bg-orange-600', pending_refund: 'bg-purple-600', refunded: 'bg-gray-600', cancelled: 'bg-red-600'
             };
             return (
               <button
@@ -121,14 +126,13 @@ export function DriverReservationsScreen() {
                   filter === f ? `${colors[f]} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                {f.charAt(0).toUpperCase() + f.slice(1).replace('_', ' ')} ({count})
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Reservations List */}
       <div className="flex-1 overflow-y-auto p-4 lg:p-6">
         {filteredReservations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -140,12 +144,11 @@ export function DriverReservationsScreen() {
             {filteredReservations.map((reservation) => {
               const statusConfig = getStatusConfig(reservation.status);
               const StatusIcon = statusConfig.icon;
+              const isExpired = reservation.status === 'expired';
+              const canRefund = isExpired && !reservation.refund_requested_at;
 
               return (
-                <div
-                  key={reservation.id}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-                >
+                <div key={reservation.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-gray-900 mb-1">{reservation.station_name}</h3>
@@ -186,6 +189,18 @@ export function DriverReservationsScreen() {
                       <p className="text-xs text-gray-500">Total Cost</p>
                       <p className="text-sm text-gray-900">ETB {reservation.total_price.toLocaleString()}</p>
                     </div>
+                    {reservation.expires_at && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500">Expires at</p>
+                        <p className="text-sm text-red-600">{new Date(reservation.expires_at).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {reservation.refund_amount && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500">Refund Amount (after 8% fee)</p>
+                        <p className="text-sm text-green-600">ETB {reservation.refund_amount.toLocaleString()}</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Pickup Code */}
@@ -197,18 +212,8 @@ export function DriverReservationsScreen() {
                           <p className="text-xl tracking-wider text-gray-900">{reservation.pickup_code}</p>
                         </div>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => handleCopyPickupCode(reservation.pickup_code)}
-                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
-                          >
-                            Copy
-                          </button>
-                          <button
-                            onClick={() => setShowQR(reservation.id)}
-                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            Show QR
-                          </button>
+                          <button onClick={() => handleCopyPickupCode(reservation.pickup_code)} className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Copy</button>
+                          <button onClick={() => setShowQR(reservation.id)} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Show QR</button>
                         </div>
                       </div>
                     </div>
@@ -218,38 +223,25 @@ export function DriverReservationsScreen() {
                   <div className="flex gap-2">
                     {reservation.status === 'confirmed' && (
                       <>
-                        <button
-                          onClick={() => setSelectedReservation(reservation)}
-                          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => handleCancel(reservation.id)}
-                          disabled={cancelling === reservation.id}
-                          className="py-2 px-4 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-60"
-                        >
+                        <button onClick={() => setSelectedReservation(reservation)} className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700">View Details</button>
+                        <button onClick={() => handleCancel(reservation.id)} disabled={cancelling === reservation.id} className="py-2 px-4 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-60">
                           {cancelling === reservation.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel'}
                         </button>
                       </>
                     )}
                     {reservation.status === 'completed' && (
-                      <button
-                        onClick={() => setSelectedReservation(reservation)}
-                        className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        View Receipt
-                      </button>
+                      <button onClick={() => setSelectedReservation(reservation)} className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">View Receipt</button>
                     )}
-                    {reservation.status === 'cancelled' && (
-                      <button className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        Book Again
+                    {reservation.status === 'expired' && (
+                      <button onClick={() => handleRequestRefund(reservation.id)} disabled={requestingRefund === reservation.id} className="w-full py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60">
+                        {requestingRefund === reservation.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Request Refund'}
                       </button>
                     )}
                     {reservation.status === 'pending' && (
-                      <button className="w-full py-2 px-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
-                        Complete Payment
-                      </button>
+                      <button className="w-full py-2 px-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">Complete Payment</button>
+                    )}
+                    {(reservation.status === 'cancelled' || reservation.status === 'refunded') && (
+                      <button className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Book Again</button>
                     )}
                   </div>
                 </div>
@@ -259,15 +251,13 @@ export function DriverReservationsScreen() {
         )}
       </div>
 
-      {/* QR Code Modal */}
+      {/* QR Code Modal (unchanged) */}
       {showQR && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-900">QR Code</h3>
-              <button onClick={() => setShowQR(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setShowQR(null)} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5" /></button>
             </div>
             {(() => {
               const r = reservations.find(x => x.id === showQR);
@@ -287,56 +277,32 @@ export function DriverReservationsScreen() {
         </div>
       )}
 
-      {/* Reservation Detail Modal */}
+      {/* Detail Modal (simplified) */}
       {selectedReservation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-gray-900">Reservation Details</h3>
-                <button onClick={() => setSelectedReservation(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X className="w-5 h-5" />
-                </button>
+                <button onClick={() => setSelectedReservation(null)} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5" /></button>
               </div>
-
               <div className="space-y-4">
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <p className="text-sm text-gray-600 mb-1">Station</p>
                   <p className="text-gray-900">{selectedReservation.station_name}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Date</p>
-                    <p className="text-gray-900">{formatDate(selectedReservation.slot_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Time</p>
-                    <p className="text-gray-900">{selectedReservation.slot_start_time} – {selectedReservation.slot_end_time}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Fuel Type</p>
-                    <p className="text-gray-900">{selectedReservation.fuel_type_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Quantity</p>
-                    <p className="text-gray-900">{selectedReservation.quantity}L</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Total Cost</p>
-                    <p className="text-gray-900">ETB {selectedReservation.total_price.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Payment</p>
-                    <p className="text-gray-900">{selectedReservation.payment_method}</p>
-                  </div>
+                  <div><p className="text-sm text-gray-600 mb-1">Date</p><p className="text-gray-900">{formatDate(selectedReservation.slot_date)}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Time</p><p className="text-gray-900">{selectedReservation.slot_start_time} – {selectedReservation.slot_end_time}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Fuel Type</p><p className="text-gray-900">{selectedReservation.fuel_type_name}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Quantity</p><p className="text-gray-900">{selectedReservation.quantity}L</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Total Cost</p><p className="text-gray-900">ETB {selectedReservation.total_price.toLocaleString()}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Payment</p><p className="text-gray-900">{selectedReservation.payment_method}</p></div>
                 </div>
-                {['confirmed', 'arrived', 'dispensing'].includes(selectedReservation.status) && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200 text-center">
-                    <div className="inline-block mb-3">
-                      <QRCodeSVG value={selectedReservation.qr_code || selectedReservation.pickup_code} size={140} />
-                    </div>
-                    <p className="text-sm text-gray-600 mb-1">Pickup Code</p>
-                    <p className="text-2xl tracking-wider text-gray-900">{selectedReservation.pickup_code}</p>
+                {selectedReservation.expires_at && (
+                  <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                    <p className="text-sm text-gray-600 mb-1">Expires at</p>
+                    <p className="text-gray-900">{new Date(selectedReservation.expires_at).toLocaleString()}</p>
                   </div>
                 )}
                 <div className="text-xs text-gray-500">

@@ -23,8 +23,6 @@ interface TimeSlotSelectorProps {
 }
 
 export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: TimeSlotSelectorProps) {
-  
-  console.log('yes TimeSlotSelector has been rendered')
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
@@ -32,7 +30,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
   // Load slots when date changes
   useEffect(() => {
-    console.log('useEffect triggered. stationId:', stationId, 'selectedDate:', selectedDate);
     if (stationId && selectedDate) {
       loadTimeSlots();
     } else {
@@ -42,11 +39,9 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
   const loadTimeSlots = async () => {
 
-    console.log('yes loadTimeSlots has been called')
     setLoading(true);
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      console.log('station id = '+stationId+'  selecte date = '+ dateStr)
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
       setSlots(data);
     } catch (error) {
