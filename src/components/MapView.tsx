@@ -1,132 +1,102 @@
-import { Station } from '../types';
+import { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Station } from '../../types';
 import { MapPin } from 'lucide-react';
-import { useState } from 'react';
-import { StationCard } from './StationCard';
+
+// Fix for default marker icons in Leaflet with Vite
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
 
 interface MapViewProps {
   stations: Station[];
-  onReserve?: (station: Station) => void;
+  userLocation: { lat: number; lng: number } | null;
+  onReserve: (station: Station) => void;
 }
 
-export function MapView({ stations, onReserve }: MapViewProps) {
-  const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
 
-  const getMarkerColor = (queueLength: string) => {
-    switch (queueLength) {
-      case 'Short':
-        return 'text-green-600';
-      case 'Medium':
-        return 'text-yellow-600';
-      case 'Long':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
+  useEffect(() => {
+    if (!mapRef.current && userLocation) {
+      // Initialize map centered on user location
+      const map = L.map('map').setView([userLocation.lat, userLocation.lng], 13);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }).addTo(map);
+      mapRef.current = map;
     }
-  };
 
-  return (
-    <div className="h-full relative">
-      {/* Map Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50">
-        {/* Grid pattern to simulate map */}
-        <div className="absolute inset-0 opacity-20">
-          <svg width="100%" height="100%">
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="gray" strokeWidth="0.5" />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [userLocation]);
 
-        {/* Road lines */}
-        <svg className="absolute inset-0 w-full h-full">
-          <line x1="0" y1="30%" x2="100%" y2="30%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="0" y1="60%" x2="100%" y2="60%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="30%" y1="0" x2="30%" y2="100%" stroke="#cbd5e0" strokeWidth="3" />
-          <line x1="70%" y1="0" x2="70%" y2="100%" stroke="#cbd5e0" strokeWidth="3" />
-        </svg>
+  useEffect(() => {
+    if (!mapRef.current || !userLocation) return;
 
-        {/* Station Markers */}
-        <div className="absolute inset-0 p-4">
-          {stations.map((station, index) => {
-            // Position stations in a grid-like pattern
-            const positions = [
-              { top: '15%', left: '25%' },
-              { top: '25%', left: '60%' },
-              { top: '40%', left: '35%' },
-              { top: '55%', left: '70%' },
-              { top: '70%', left: '20%' },
-              { top: '75%', left: '55%' },
-            ];
-            const position = positions[index % positions.length];
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
 
-            return (
-              <button
-                key={station.id}
-                onClick={() => setSelectedStation(station)}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-transform hover:scale-110"
-                style={{ top: position.top, left: position.left }}
-              >
-                <div className="relative">
-                  <MapPin className={`w-10 h-10 drop-shadow-lg ${getMarkerColor(station.queueLength)}`} fill="currentColor" />
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white px-2 py-0.5 rounded shadow-sm text-xs">
-                    {station.distance} km
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+    // Add user location marker
+    const userMarker = L.marker([userLocation.lat, userLocation.lng], {
+      icon: L.divIcon({
+        className: 'custom-user-marker',
+        html: '<div class="w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-lg"></div>',
+        iconSize: [16, 16],
+        popupAnchor: [0, -8],
+      }),
+    }).addTo(mapRef.current);
+    userMarker.bindPopup('Your location').openPopup();
+    markersRef.current.push(userMarker);
 
-        {/* User Location Marker */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 bg-blue-600 rounded-full border-4 border-white shadow-lg animate-pulse"></div>
-        </div>
-      </div>
-
-      {/* Selected Station Card */}
-      {selectedStation && (
-        <div className="absolute bottom-4 left-4 right-4 animate-in slide-in-from-bottom">
-          <div className="relative">
-            <button
-              onClick={() => setSelectedStation(null)}
-              className="absolute -top-2 -right-2 w-8 h-8 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors z-10 flex items-center justify-center"
-            >
-              ×
-            </button>
-            <StationCard station={selectedStation} onReserve={onReserve} />
+    // Add station markers
+    stations.forEach(station => {
+      const popupContent = `
+        <div class="p-2 min-w-[200px]">
+          <h3 class="font-bold text-gray-900">${station.name}</h3>
+          <p class="text-sm text-gray-600">${station.address || 'Address not available'}</p>
+          <p class="text-sm text-gray-600 mt-1">Distance: ${station.distance ? station.distance.toFixed(1) : '?'} km</p>
+          <p class="text-sm text-gray-600">Travel time: ~${station.travelTime || '?'} min</p>
+          <div class="flex flex-wrap gap-1 mt-2">
+            ${station.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}
           </div>
+          <button class="mt-3 w-full bg-blue-600 text-white py-1 rounded-md text-sm" data-station-id="${station.id}">Reserve Fuel</button>
         </div>
-      )}
+      `;
+      const marker = L.marker([station.latitude, station.longitude]).addTo(mapRef.current!);
+      marker.bindPopup(popupContent);
+      marker.on('popupopen', () => {
+        const btn = document.querySelector(`button[data-station-id="${station.id}"]`);
+        if (btn) {
+          btn.addEventListener('click', () => onReserve(station));
+        }
+      });
+      markersRef.current.push(marker);
+    });
 
-      {/* Map Controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <button className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors">
-          +
-        </button>
-        <button className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors">
-          −
-        </button>
-      </div>
+    // Fit bounds to include all markers
+    if (stations.length > 0) {
+      const bounds = L.latLngBounds([userLocation.lat, userLocation.lng]);
+      stations.forEach(s => bounds.extend([s.latitude, s.longitude]));
+      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [stations, userLocation, onReserve]);
 
-      {/* Legend */}
-      <div className="absolute top-4 left-4 bg-white rounded-lg shadow-md p-3">
-        <p className="text-xs text-gray-500 mb-2">Queue Status</p>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-green-600" fill="currentColor" />
-            <span className="text-xs">Short</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-yellow-600" fill="currentColor" />
-            <span className="text-xs">Medium</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-red-600" fill="currentColor" />
-            <span className="text-xs">Long</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <div id="map" className="w-full h-full" />;
 }
