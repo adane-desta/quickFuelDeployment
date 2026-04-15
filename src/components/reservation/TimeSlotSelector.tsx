@@ -14,7 +14,6 @@ interface TimeSlotSelectorProps {
   selectedSlotId?: string;
 }
 
-// Helper: get local date string (YYYY-MM-DD) without timezone shift
 const getLocalDateStr = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -28,40 +27,38 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-// Inside TimeSlotSelector, replace loadTimeSlots with:
-// Inside TimeSlotSelector, replace loadTimeSlots with:
-const loadTimeSlots = useCallback(async () => {
-  if (!stationId) return;
-  setLoading(true);
-  try {
-    const dateStr = getLocalDateStr(selectedDate);
-    // Fetch ALL slots for the date (including closed)
-    const data = await timeSlotService.getSlotsForDate(stationId, dateStr);
-    
-    const now = new Date();
-    const todayStr = getLocalDateStr(now);
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+  const loadTimeSlots = useCallback(async () => {
+    if (!stationId) return;
+    setLoading(true);
+    try {
+      const dateStr = getLocalDateStr(selectedDate);
+      // Fetch ALL slots for the date (including closed)
+      const data = await timeSlotService.getSlotsForDate(stationId, dateStr);
+      
+      const now = new Date();
+      const todayStr = getLocalDateStr(now);
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
 
-    // Process slots: mark additional closed slots for today (if not already closed)
-    const processedSlots = data.map(slot => {
-      if (slot.slot_date === todayStr && slot.status !== 'closed') {
-        const [endHour, endMinute] = slot.end_time.split(':').map(Number);
-        if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
-          return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
+      const processedSlots = data.map(slot => {
+        // For today, mark slots that have already ended as closed
+        if (slot.slot_date === todayStr && slot.status !== 'closed') {
+          const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+          if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
+            return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
+          }
         }
-      }
-      return slot;
-    });
-    
-    setSlots(processedSlots);
-  } catch (error) {
-    notifyError('Failed to load time slots', error);
-    setSlots([]);
-  } finally {
-    setLoading(false);
-  }
-}, [stationId, selectedDate]);
+        return slot;
+      });
+      
+      setSlots(processedSlots);
+    } catch (error) {
+      notifyError('Failed to load time slots', error);
+      setSlots([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [stationId, selectedDate]);
 
   useEffect(() => {
     loadTimeSlots();
@@ -69,10 +66,8 @@ const loadTimeSlots = useCallback(async () => {
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    const newDateStr = getLocalDateStr(date);
-    const currentDateStr = getLocalDateStr(selectedDate);
-    if (newDateStr === currentDateStr) {
-      setRefreshKey(prev => prev + 1); // force reload for same date
+    if (date.toDateString() === selectedDate.toDateString()) {
+      setRefreshKey(prev => prev + 1);
     } else {
       setSelectedDate(date);
     }
@@ -129,7 +124,7 @@ const loadTimeSlots = useCallback(async () => {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-primary" />
-            <span className="font-medium">Available Time Slots</span>
+            <span className="font-medium">Time Slots</span>
           </div>
           {!loading && slots.length > 0 && <span className="text-xs text-gray-500">{slots.length} slots</span>}
         </div>
@@ -141,8 +136,8 @@ const loadTimeSlots = useCallback(async () => {
         ) : slots.length === 0 ? (
           <Card className="p-8 text-center">
             <AlertCircle className="size-12 mx-auto mb-3 text-gray-400" />
-            <p className="font-medium text-gray-700 mb-1">No Available Slots</p>
-            <p className="text-sm text-gray-500">Please select a different date</p>
+            <p className="font-medium text-gray-700 mb-1">No Time Slots</p>
+            <p className="text-sm text-gray-500">No slots available for this date.</p>
           </Card>
         ) : (
           <div className="space-y-3">
