@@ -28,37 +28,39 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const loadTimeSlots = useCallback(async () => {
-    if (!stationId) return;
-    setLoading(true);
-    try {
-      const dateStr = getLocalDateStr(selectedDate);
-      const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
+// Inside TimeSlotSelector, replace loadTimeSlots with:
+const loadTimeSlots = useCallback(async () => {
+  if (!stationId) return;
+  setLoading(true);
+  try {
+    const dateStr = getLocalDateStr(selectedDate);
+    // Fetch ALL slots for the date (including closed)
+    const data = await timeSlotService.getSlotsForDate(stationId, dateStr);
+    
+    const now = new Date();
+    const todayStr = getLocalDateStr(now);
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
 
-      const now = new Date();
-      const todayStr = getLocalDateStr(now);
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-
-      // Only mark closed slots for today; keep original order
-      const processedSlots = data.map(slot => {
-        if (slot.slot_date === todayStr) {
-          const [endHour, endMinute] = slot.end_time.split(':').map(Number);
-          if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
-            return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
-          }
+    // Process slots: mark additional closed slots for today (if not already closed)
+    const processedSlots = data.map(slot => {
+      if (slot.slot_date === todayStr && slot.status !== 'closed') {
+        const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+        if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
+          return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
         }
-        return slot;
-      });
-
-      setSlots(processedSlots);
-    } catch (error) {
-      notifyError('Failed to load time slots', error);
-      setSlots([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [stationId, selectedDate]);
+      }
+      return slot;
+    });
+    
+    setSlots(processedSlots);
+  } catch (error) {
+    notifyError('Failed to load time slots', error);
+    setSlots([]);
+  } finally {
+    setLoading(false);
+  }
+}, [stationId, selectedDate]);
 
   useEffect(() => {
     loadTimeSlots();
