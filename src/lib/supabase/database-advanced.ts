@@ -346,6 +346,27 @@ export const reservationService = {
     }
   },
 
+  // In timeSlotService, add this method:
+async getSlotsForDate(stationId: string, date: string): Promise<TimeSlot[]> {
+  try {
+    const { data, error } = await supabase
+      .from('time_slots')
+      .select('*')
+      .eq('station_id', stationId)
+      .eq('slot_date', date)
+      .order('start_time', { ascending: true });
+    if (error) throw error;
+    return (data || []).map((slot: any) => ({
+      ...slot,
+      available_spots: slot.max_capacity - slot.current_reservations,
+      occupancy_percentage: (slot.current_reservations / slot.max_capacity) * 100,
+    }));
+  } catch (error) {
+    logError('getSlotsForDate', error);
+    return [];
+  }
+},
+
   /**
    * Cancel reservation
    */
