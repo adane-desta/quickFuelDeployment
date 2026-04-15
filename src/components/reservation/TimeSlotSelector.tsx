@@ -14,6 +14,7 @@ interface TimeSlotSelectorProps {
   selectedSlotId?: string;
 }
 
+// Helper: get local date string (YYYY-MM-DD) without timezone shift
 const getLocalDateStr = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -32,16 +33,16 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     setLoading(true);
     try {
       const dateStr = getLocalDateStr(selectedDate);
-      // Fetch ALL slots for the date (including closed)
-      const data = await timeSlotService.getSlotsForDate(stationId, dateStr);
-      
+      // Use the new method that returns ALL slots (including closed)
+      const data = await timeSlotService.getAllSlotsForDate(stationId, dateStr);
+
       const now = new Date();
       const todayStr = getLocalDateStr(now);
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
 
+      // For today, mark slots that have ended as 'closed' (if not already)
       const processedSlots = data.map(slot => {
-        // For today, mark slots that have already ended as closed
         if (slot.slot_date === todayStr && slot.status !== 'closed') {
           const [endHour, endMinute] = slot.end_time.split(':').map(Number);
           if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
@@ -50,7 +51,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         }
         return slot;
       });
-      
+
       setSlots(processedSlots);
     } catch (error) {
       notifyError('Failed to load time slots', error);
@@ -66,17 +67,21 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    if (date.toDateString() === selectedDate.toDateString()) {
-      setRefreshKey(prev => prev + 1);
+    const newDateStr = getLocalDateStr(date);
+    const currentDateStr = getLocalDateStr(selectedDate);
+    if (newDateStr === currentDateStr) {
+      setRefreshKey(prev => prev + 1); // force reload for same date
     } else {
       setSelectedDate(date);
     }
   };
 
   const getSlotStatusBadge = (slot: TimeSlot) => {
-    if (slot.status === 'full') return <Badge variant="destructive" className="text-xs">Full</Badge>;
-    if (slot.status === 'limited') return <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">Limited</Badge>;
-    if (slot.status === 'closed') return <Badge variant="secondary" className="text-xs bg-gray-500 text-white">Closed</Badge>;
+    // Compare status as lower case to match database
+    const status = slot.status?.toLowerCase();
+    if (status === 'full') return <Badge variant="destructive" className="text-xs">Full</Badge>;
+    if (status === 'limited') return <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">Limited</Badge>;
+    if (status === 'closed') return <Badge variant="secondary" className="text-xs bg-gray-500 text-white">Closed</Badge>;
     return <Badge variant="default" className="text-xs bg-green-500">Available</Badge>;
   };
 
@@ -124,7 +129,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-primary" />
-            <span className="font-medium">Time Slots</span>
+            <span className="font-medium">Available Time Slots</span>
           </div>
           {!loading && slots.length > 0 && <span className="text-xs text-gray-500">{slots.length} slots</span>}
         </div>
@@ -136,8 +141,8 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
         ) : slots.length === 0 ? (
           <Card className="p-8 text-center">
             <AlertCircle className="size-12 mx-auto mb-3 text-gray-400" />
-            <p className="font-medium text-gray-700 mb-1">No Time Slots</p>
-            <p className="text-sm text-gray-500">No slots available for this date.</p>
+            <p className="font-medium text-gray-700 mb-1">No Available Slots</p>
+            <p className="text-sm text-gray-500">Please select a different date</p>
           </Card>
         ) : (
           <div className="space-y-3">
