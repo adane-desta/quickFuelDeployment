@@ -3,7 +3,6 @@ import { Calendar, Clock, Users, AlertCircle } from 'lucide-react';
 import { timeSlotService } from '../../lib/supabase/database-advanced';
 import { notifyError } from '../../lib/utils/notifications';
 import type { TimeSlot } from '../../types/advanced';
-import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Calendar as CalendarUI } from '../ui/calendar';
@@ -19,7 +18,6 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
-  // Force refresh when same date is selected again
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadTimeSlots = useCallback(async () => {
@@ -28,29 +26,26 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
-      
-      // Get current time in local timezone (without UTC conversion)
+
+      // Get current local time
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       const todayStr = new Date().toISOString().split('T')[0];
-      
-      const processedSlots = data.map(slot => {
-        if (slot.slot_date === todayStr) {
-          const [startHour, startMinute] = slot.start_time.split(':').map(Number);
-          // If the slot's start time is before the current time, mark as closed
-          if (startHour < currentHour || (startHour === currentHour && startMinute <= currentMinute)) {
-            return { 
-              ...slot, 
-              status: 'closed', 
-              available_spots: 0,
-              occupancy_percentage: 100 
-            };
+
+      const processedSlots = data
+        .map(slot => {
+          if (slot.slot_date === todayStr) {
+            const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+            // Close if the slot has already ended (end time <= current time)
+            if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
+              return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
+            }
           }
-        }
-        return slot;
-      });
-      
+          return slot;
+        })
+        .sort((a, b) => a.start_time.localeCompare(b.start_time)); // ensure ascending order
+
       setSlots(processedSlots);
     } catch (error) {
       notifyError('Failed to load time slots', error);
@@ -64,11 +59,10 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     loadTimeSlots();
   }, [loadTimeSlots, refreshKey]);
 
-  // Handle date selection: if same date is clicked, increment refreshKey to reload
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
     if (date.toDateString() === selectedDate.toDateString()) {
-      setRefreshKey(prev => prev + 1);
+      setRefreshKey(prev => prev + 1); // force reload for same date
     } else {
       setSelectedDate(date);
     }
@@ -115,11 +109,8 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
           className="rounded-md border w-full"
         />
         <p className="text-xs text-gray-500 mt-2">
-          Selected: {selectedDate.toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          Selected: {selectedDate.toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
           })}
         </p>
       </Card>
@@ -151,21 +142,15 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                 <Card
                   key={slot.id}
                   className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-                    selectedSlotId === slot.id
-                      ? 'border-2 border-primary bg-primary/5'
-                      : 'border border-gray-200'
+                    selectedSlotId === slot.id ? 'border-2 border-primary bg-primary/5' : 'border border-gray-200'
                   } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => !isDisabled && onSelectSlot(slot)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Clock className="size-5 text-primary" />
-                      </div>
+                      <div className="p-2 bg-primary/10 rounded-lg"><Clock className="size-5 text-primary" /></div>
                       <div>
-                        <p className="font-semibold text-base">
-                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                        </p>
+                        <p className="font-semibold text-base">{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</p>
                         <p className="text-xs text-gray-500">1 hour slot</p>
                       </div>
                     </div>
@@ -178,42 +163,30 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
                         <div className="flex items-center gap-2 text-sm">
                           <Users className="size-4 text-gray-400" />
                           <span className="text-gray-600">
-                            <span className="font-medium text-gray-900">{slot.available_spots}</span>
-                            {' '}/{' '}{slot.max_capacity} spots available
+                            <span className="font-medium text-gray-900">{slot.available_spots}</span> / {slot.max_capacity} spots available
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
-                              className={`h-full transition-all ${
-                                slot.occupancy_percentage! >= 100
-                                  ? 'bg-red-500'
-                                  : slot.occupancy_percentage! >= 75
-                                  ? 'bg-yellow-500'
-                                  : 'bg-green-500'
-                              }`}
+                              className={`h-full ${slot.occupancy_percentage! >= 100 ? 'bg-red-500' : slot.occupancy_percentage! >= 75 ? 'bg-yellow-500' : 'bg-green-500'}`}
                               style={{ width: `${slot.occupancy_percentage}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-500 min-w-[40px]">
-                            {Math.round(slot.occupancy_percentage!)}%
-                          </span>
+                          <span className="text-xs text-gray-500">{Math.round(slot.occupancy_percentage!)}%</span>
                         </div>
                       </div>
                       {selectedSlotId === slot.id && (
                         <div className="mt-3 pt-3 border-t border-primary/20">
                           <div className="flex items-center gap-2 text-sm text-primary">
-                            <div className="size-2 bg-primary rounded-full animate-pulse" />
-                            <span className="font-medium">Selected</span>
+                            <div className="size-2 bg-primary rounded-full animate-pulse" /><span className="font-medium">Selected</span>
                           </div>
                         </div>
                       )}
                     </>
                   )}
                   {slot.status === 'closed' && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 text-center text-gray-500 text-sm">
-                      This time slot has already passed
-                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-200 text-center text-gray-500 text-sm">This time slot has already passed</div>
                   )}
                 </Card>
               );
