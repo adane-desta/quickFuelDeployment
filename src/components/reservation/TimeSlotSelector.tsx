@@ -29,6 +29,7 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
   const [refreshKey, setRefreshKey] = useState(0);
 
 // Inside TimeSlotSelector, replace loadTimeSlots with:
+// Inside TimeSlotSelector, replace loadTimeSlots with:
 const loadTimeSlots = useCallback(async () => {
   if (!stationId) return;
   setLoading(true);
