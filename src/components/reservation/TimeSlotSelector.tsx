@@ -14,6 +14,14 @@ interface TimeSlotSelectorProps {
   selectedSlotId?: string;
 }
 
+// Helper: get local date string (YYYY-MM-DD) without timezone shift
+const getLocalDateStr = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: TimeSlotSelectorProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
@@ -24,27 +32,24 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
     if (!stationId) return;
     setLoading(true);
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = getLocalDateStr(selectedDate);
       const data = await timeSlotService.getAvailableSlots(stationId, dateStr);
 
-      // Get current local time
       const now = new Date();
+      const todayStr = getLocalDateStr(now);
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
-      const todayStr = new Date().toISOString().split('T')[0];
 
-      const processedSlots = data
-        .map(slot => {
-          if (slot.slot_date === todayStr) {
-            const [endHour, endMinute] = slot.end_time.split(':').map(Number);
-            // Close if the slot has already ended (end time <= current time)
-            if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
-              return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
-            }
+      // Only mark closed slots for today; keep original order
+      const processedSlots = data.map(slot => {
+        if (slot.slot_date === todayStr) {
+          const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+          if (endHour < currentHour || (endHour === currentHour && endMinute <= currentMinute)) {
+            return { ...slot, status: 'closed', available_spots: 0, occupancy_percentage: 100 };
           }
-          return slot;
-        })
-        .sort((a, b) => a.start_time.localeCompare(b.start_time)); // ensure ascending order
+        }
+        return slot;
+      });
 
       setSlots(processedSlots);
     } catch (error) {
@@ -61,7 +66,9 @@ export function TimeSlotSelector({ stationId, onSelectSlot, selectedSlotId }: Ti
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    if (date.toDateString() === selectedDate.toDateString()) {
+    const newDateStr = getLocalDateStr(date);
+    const currentDateStr = getLocalDateStr(selectedDate);
+    if (newDateStr === currentDateStr) {
       setRefreshKey(prev => prev + 1); // force reload for same date
     } else {
       setSelectedDate(date);
