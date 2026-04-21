@@ -4,8 +4,8 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Plus, Edit2, Save, X, Loader2, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Plus, Edit2, Save, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CarClass {
@@ -23,6 +23,7 @@ export function CarClassManagement() {
   const [editForm, setEditForm] = useState({ name: '', description: '', weekly_fuel_limit: 0 });
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newClass, setNewClass] = useState({ name: '', description: '', weekly_fuel_limit: 0 });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -31,7 +32,11 @@ export function CarClassManagement() {
   const loadClasses = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('car_classes').select('*').order('name');
-    if (!error) setClasses(data || []);
+    if (error) {
+      toast.error('Failed to load car classes');
+    } else {
+      setClasses(data || []);
+    }
     setLoading(false);
   };
 
@@ -45,6 +50,7 @@ export function CarClassManagement() {
   };
 
   const handleSaveEdit = async (id: string) => {
+    setSaving(true);
     const { error } = await supabase
       .from('car_classes')
       .update({
@@ -57,10 +63,11 @@ export function CarClassManagement() {
     if (error) {
       toast.error('Failed to update');
     } else {
-      toast.success('Updated');
+      toast.success('Updated successfully');
       loadClasses();
       setEditingId(null);
     }
+    setSaving(false);
   };
 
   const handleToggleActive = async (id: string, currentActive: boolean) => {
@@ -68,7 +75,11 @@ export function CarClassManagement() {
       .from('car_classes')
       .update({ is_active: !currentActive })
       .eq('id', id);
-    if (!error) loadClasses();
+    if (error) {
+      toast.error('Failed to update status');
+    } else {
+      loadClasses();
+    }
   };
 
   const handleAdd = async () => {
@@ -76,6 +87,7 @@ export function CarClassManagement() {
       toast.error('Name and valid limit required');
       return;
     }
+    setSaving(true);
     const { error } = await supabase.from('car_classes').insert({
       name: newClass.name,
       description: newClass.description,
@@ -89,6 +101,7 @@ export function CarClassManagement() {
       setNewClass({ name: '', description: '', weekly_fuel_limit: 0 });
       loadClasses();
     }
+    setSaving(false);
   };
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
@@ -102,12 +115,15 @@ export function CarClassManagement() {
             <Button className="bg-green-600"><Plus className="w-4 h-4 mr-1" /> Add Class</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Add New Car Class</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Add New Car Class</DialogTitle>
+              <DialogDescription>Enter the details for the new vehicle class.</DialogDescription>
+            </DialogHeader>
             <div className="space-y-4 mt-4">
               <div><Label>Name *</Label><Input value={newClass.name} onChange={e => setNewClass({...newClass, name: e.target.value})} /></div>
               <div><Label>Description</Label><Input value={newClass.description} onChange={e => setNewClass({...newClass, description: e.target.value})} /></div>
               <div><Label>Weekly Fuel Limit (Liters) *</Label><Input type="number" value={newClass.weekly_fuel_limit} onChange={e => setNewClass({...newClass, weekly_fuel_limit: parseInt(e.target.value)})} /></div>
-              <Button onClick={handleAdd}>Add Class</Button>
+              <Button onClick={handleAdd} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Add Class</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -122,7 +138,10 @@ export function CarClassManagement() {
                 <Input value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} />
                 <Input type="number" value={editForm.weekly_fuel_limit} onChange={e => setEditForm({...editForm, weekly_fuel_limit: parseInt(e.target.value)})} />
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleSaveEdit(c.id)}><Save className="w-4 h-4 mr-1" /> Save</Button>
+                  <Button size="sm" onClick={() => handleSaveEdit(c.id)} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                    Save
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
                 </div>
               </div>
