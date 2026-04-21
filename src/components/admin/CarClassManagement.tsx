@@ -36,7 +36,6 @@ export function CarClassManagement() {
       if (error) throw error;
       setClasses(data || []);
     } catch (error: any) {
-      console.error('Error loading classes:', error);
       toast.error('Failed to load car classes: ' + error.message);
     } finally {
       setLoading(false);
@@ -122,7 +121,7 @@ export function CarClassManagement() {
           <DialogTrigger asChild>
             <Button className="bg-green-600"><Plus className="w-4 h-4 mr-1" /> Add Class</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent onClick={(e) => e.stopPropagation()}>
             <DialogHeader>
               <DialogTitle>Add New Car Class</DialogTitle>
               <DialogDescription>Enter the details for the new vehicle class.</DialogDescription>
