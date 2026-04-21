@@ -9,6 +9,8 @@ import { SystemActivity } from './SystemActivity';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminProfile } from './AdminProfile';
 import { FuelPriceManagement } from './FuelPriceManagement';
+import { AddDriverModal } from './AddDriverModal';
+import { CarClassManagement } from './CarClassManagement';
 import { SystemAnalytics } from './SystemAnalytics';
 import {
   Fuel, LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3
@@ -37,6 +39,8 @@ export function AdminLayout() {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'stations', label: 'Station Management', icon: Building2 },
     { id: 'reservations', label: 'Reservations', icon: Calendar },
+    { id: 'carClass', label: 'Manage CarClass', icon: LayoutDashboard},
+    { id: 'addDriver', label: 'Add Driver', icon: LayoutDashboard},
     { id: 'activity', label: 'System Activity', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
@@ -49,6 +53,8 @@ export function AdminLayout() {
       case 'stations': return <StationManagement />;
       case 'reservations': return <ReservationMonitoring />;
       case 'activity': return <SystemActivity />;
+      case 'addDriver': return <AddDriverModal />;
+      case 'carClass' : return <CarClassManagement />;
       case 'notifications': return <AdminNotifications />;
       case 'profile': return <AdminProfile onLogout={handleLogout} />;
       case 'fuelprices': return <FuelPriceManagement />;
