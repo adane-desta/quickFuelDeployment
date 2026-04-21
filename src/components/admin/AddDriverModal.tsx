@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, User, Mail, Phone, MapPin, Car, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Loader2, User, Mail, Phone, MapPin, Car, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -25,6 +25,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [carClasses, setCarClasses] = useState<CarClass[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -42,12 +43,19 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
   }, [isOpen]);
 
   const loadCarClasses = async () => {
+    setLoadingClasses(true);
     const { data, error } = await supabase
       .from('car_classes')
       .select('*')
       .eq('is_active', true)
       .order('name');
-    if (!error && data) setCarClasses(data);
+    if (error) {
+      console.error(error);
+      toast.error('Failed to load car classes');
+    } else {
+      setCarClasses(data || []);
+    }
+    setLoadingClasses(false);
   };
 
   const validateStep1 = () => {
@@ -92,7 +100,6 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       const tempPassword = generateRandomPassword();
       const formattedPhone = formatEthiopianPhone(formData.phone);
 
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: tempPassword,
@@ -112,10 +119,8 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       });
       if (authError) throw authError;
 
-      // Wait for trigger to create user profile
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Update user with car class and other fields (if trigger didn't include them)
       const { error: updateError } = await supabase
         .from('users')
         .update({
@@ -195,16 +200,20 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
               <h3 className="text-lg font-semibold">Vehicle Information</h3>
               <div>
                 <Label>Car Class *</Label>
-                <Select value={formData.carClassId} onValueChange={val => setFormData({...formData, carClassId: val})}>
-                  <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}>
-                    <SelectValue placeholder="Select car class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {carClasses.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name} – {c.weekly_fuel_limit} L/week</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {loadingClasses ? (
+                  <div className="flex items-center gap-2 p-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading classes...</div>
+                ) : (
+                  <Select value={formData.carClassId} onValueChange={val => setFormData({...formData, carClassId: val})}>
+                    <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select car class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {carClasses.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name} – {c.weekly_fuel_limit} L/week</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {selectedClass && <p className="text-xs text-gray-500 mt-1">Weekly fuel limit: {selectedClass.weekly_fuel_limit} liters</p>}
               </div>
               <div><Label>Vehicle Model *</Label><Input value={formData.vehicleModel} onChange={e => setFormData({...formData, vehicleModel: e.target.value})} /></div>
