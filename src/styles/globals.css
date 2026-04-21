@@ -208,3 +208,14 @@ html {
 .fixed.inset-0.z-50 > div {
   pointer-events: auto;
 }
+
+/* Ensure Radix UI select portal appears above modal */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Also fix for any other Radix portals */
+[data-radix-portal] {
+  z-index: 9999 !important;
+}
+

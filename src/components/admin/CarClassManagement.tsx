@@ -121,7 +121,11 @@ export function CarClassManagement() {
           <DialogTrigger asChild>
             <Button className="bg-green-600"><Plus className="w-4 h-4 mr-1" /> Add Class</Button>
           </DialogTrigger>
-          <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogContent
+            className="sm:max-w-md"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Add New Car Class</DialogTitle>
               <DialogDescription>Enter the details for the new vehicle class.</DialogDescription>
@@ -130,7 +134,10 @@ export function CarClassManagement() {
               <div><Label>Name *</Label><Input value={newClass.name} onChange={e => setNewClass({...newClass, name: e.target.value})} /></div>
               <div><Label>Description</Label><Input value={newClass.description} onChange={e => setNewClass({...newClass, description: e.target.value})} /></div>
               <div><Label>Weekly Fuel Limit (Liters) *</Label><Input type="number" value={newClass.weekly_fuel_limit} onChange={e => setNewClass({...newClass, weekly_fuel_limit: parseInt(e.target.value)})} /></div>
-              <Button onClick={handleAdd} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Add Class</Button>
+              <Button onClick={handleAdd} disabled={saving} className="w-full">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Add Class
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

@@ -52,9 +52,6 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
         .order('name');
       if (error) throw error;
       setCarClasses(data || []);
-      if (data && data.length === 0) {
-        toast.warning('No car classes found. Please add some first.');
-      }
     } catch (error: any) {
       console.error('Error loading car classes:', error);
       toast.error('Failed to load car classes: ' + error.message);
@@ -105,66 +102,24 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       const tempPassword = generateRandomPassword();
       const formattedPhone = formatEthiopianPhone(formData.phone);
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            phone: formattedPhone,
-            role: 'driver',
-            address: formData.address,
-            license_number: formData.licenseNumber,
-            car_class_id: formData.carClassId,
-            vehicle_model: formData.vehicleModel,
-            plate_number: formData.plateNumber,
-          },
-          emailRedirectTo: undefined,
+      // Call edge function to create user (auth + profile)
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: formData.email,
+          password: tempPassword,
+          full_name: formData.fullName,
+          phone: formattedPhone,
+          role: 'driver',
+          address: formData.address,
+          license_number: formData.licenseNumber,
+          car_class_id: formData.carClassId,
+          vehicle_model: formData.vehicleModel,
+          plate_number: formData.plateNumber,
         },
       });
-      if (authError) throw authError;
 
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // Check if user exists in public.users
-      const { data: userCheck, error: checkError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-
-      if (!userCheck) {
-        // Manual insert fallback
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email: formData.email,
-            full_name: formData.fullName,
-            phone: formattedPhone,
-            role: 'driver',
-            address: formData.address,
-            license_number: formData.licenseNumber,
-            car_class_id: formData.carClassId,
-            vehicle_model: formData.vehicleModel,
-            plate_number: formData.plateNumber,
-            is_active: true,
-          });
-        if (insertError) throw insertError;
-      } else {
-        // Update existing
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            car_class_id: formData.carClassId,
-            vehicle_model: formData.vehicleModel,
-            plate_number: formData.plateNumber,
-            license_number: formData.licenseNumber,
-            address: formData.address,
-          })
-          .eq('id', authData.user.id);
-        if (updateError) console.warn('Update error:', updateError);
-      }
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Unknown error');
 
       toast.success('Driver registered successfully!', {
         description: `Email: ${formData.email}\nTemporary Password: ${tempPassword}`,
