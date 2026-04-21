@@ -120,7 +120,11 @@ async getAllSlotsForDate(stationId: string, date: string): Promise<TimeSlot[]> {
       .eq('station_id', stationId)
       .eq('slot_date', date)
       .order('start_time', { ascending: true });
-    if (error) throw error;
+    if (error)
+     throw error;
+
+     console.log('the slot data being returned ==== '+data)
+
     return (data || []).map((slot: any) => ({
       ...slot,
       available_spots: slot.max_capacity - slot.current_reservations,
