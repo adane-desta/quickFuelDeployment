@@ -1,4 +1,4 @@
-import { useState , useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminDashboard } from './AdminDashboard';
@@ -9,11 +9,11 @@ import { SystemActivity } from './SystemActivity';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminProfile } from './AdminProfile';
 import { FuelPriceManagement } from './FuelPriceManagement';
-import { AddDriverModal } from './AddDriverModal';
+import { AddDriverPage } from './AddDriverPage';        // ← new import
 import { CarClassManagement } from './CarClassManagement';
 import { SystemAnalytics } from './SystemAnalytics';
 import {
-  Fuel, LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3
+  LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus
 } from 'lucide-react';
 
 export function AdminLayout() {
@@ -23,12 +23,10 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-  if (!user) {
-    navigate('/login');
-  }
-}, [user, navigate]);
+    if (!user) navigate('/login');
+  }, [user, navigate]);
 
-  if (!user)  return null; 
+  if (!user) return null;
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -39,8 +37,8 @@ export function AdminLayout() {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'stations', label: 'Station Management', icon: Building2 },
     { id: 'reservations', label: 'Reservations', icon: Calendar },
-    { id: 'carClass', label: 'Manage CarClass', icon: LayoutDashboard},
-    { id: 'addDriver', label: 'Add Driver', icon: LayoutDashboard},
+    { id: 'carClass', label: 'Manage Car Class', icon: Car },              // changed icon
+    { id: 'addDriver', label: 'Add Driver', icon: UserPlus },              // changed icon
     { id: 'activity', label: 'System Activity', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
@@ -53,8 +51,8 @@ export function AdminLayout() {
       case 'stations': return <StationManagement />;
       case 'reservations': return <ReservationMonitoring />;
       case 'activity': return <SystemActivity />;
-      case 'addDriver': return <AddDriverModal />;
-      case 'carClass' : return <CarClassManagement />;
+      case 'addDriver': return <AddDriverPage />;                 // ← changed
+      case 'carClass': return <CarClassManagement />;
       case 'notifications': return <AdminNotifications />;
       case 'profile': return <AdminProfile onLogout={handleLogout} />;
       case 'fuelprices': return <FuelPriceManagement />;
@@ -62,6 +60,9 @@ export function AdminLayout() {
       default: return <AdminDashboard onNavigate={setActiveTab} />;
     }
   };
+
+  // The rest of your JSX (sidebar, mobile overlay, main content) remains exactly the same.
+  // I'll repeat it here only for completeness – you can keep your original code.
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -114,7 +115,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay – keep exactly as you had */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
