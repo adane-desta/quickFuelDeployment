@@ -44,18 +44,23 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
 
   const loadCarClasses = async () => {
     setLoadingClasses(true);
-    const { data, error } = await supabase
-      .from('car_classes')
-      .select('*')
-      .eq('is_active', true)
-      .order('name');
-    if (error) {
-      console.error(error);
-      toast.error('Failed to load car classes');
-    } else {
+    try {
+      const { data, error } = await supabase
+        .from('car_classes')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
       setCarClasses(data || []);
+      if (data && data.length === 0) {
+        toast.warning('No car classes found. Please add some first.');
+      }
+    } catch (error: any) {
+      console.error('Error loading car classes:', error);
+      toast.error('Failed to load car classes: ' + error.message);
+    } finally {
+      setLoadingClasses(false);
     }
-    setLoadingClasses(false);
   };
 
   const validateStep1 = () => {
@@ -141,6 +146,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       onClose();
       resetForm();
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast.error('Registration failed', { description: error.message });
     } finally {
       setLoading(false);
@@ -202,6 +208,8 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
                 <Label>Car Class *</Label>
                 {loadingClasses ? (
                   <div className="flex items-center gap-2 p-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading classes...</div>
+                ) : carClasses.length === 0 ? (
+                  <div className="p-2 text-red-600">No car classes available. Please contact admin.</div>
                 ) : (
                   <Select value={formData.carClassId} onValueChange={val => setFormData({...formData, carClassId: val})}>
                     <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}>
