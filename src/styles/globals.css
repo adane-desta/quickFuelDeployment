@@ -195,3 +195,16 @@ html {
 .fixed.inset-0 {
   z-index: 1000;
 }
+
+/* Fix for Radix UI select portal z-index */
+[data-radix-popper-content-wrapper] {
+  z-index: 100 !important;
+}
+
+/* Ensure dialog overlay doesn't capture clicks */
+.fixed.inset-0.z-50 {
+  pointer-events: none;
+}
+.fixed.inset-0.z-50 > div {
+  pointer-events: auto;
+}
