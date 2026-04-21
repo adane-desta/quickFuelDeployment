@@ -124,19 +124,47 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       });
       if (authError) throw authError;
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const { error: updateError } = await supabase
+      // Check if user exists in public.users
+      const { data: userCheck, error: checkError } = await supabase
         .from('users')
-        .update({
-          car_class_id: formData.carClassId,
-          vehicle_model: formData.vehicleModel,
-          plate_number: formData.plateNumber,
-          license_number: formData.licenseNumber,
-          address: formData.address,
-        })
-        .eq('id', authData.user.id);
-      if (updateError) console.warn('Update error:', updateError);
+        .select('id')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (!userCheck) {
+        // Manual insert fallback
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            email: formData.email,
+            full_name: formData.fullName,
+            phone: formattedPhone,
+            role: 'driver',
+            address: formData.address,
+            license_number: formData.licenseNumber,
+            car_class_id: formData.carClassId,
+            vehicle_model: formData.vehicleModel,
+            plate_number: formData.plateNumber,
+            is_active: true,
+          });
+        if (insertError) throw insertError;
+      } else {
+        // Update existing
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            car_class_id: formData.carClassId,
+            vehicle_model: formData.vehicleModel,
+            plate_number: formData.plateNumber,
+            license_number: formData.licenseNumber,
+            address: formData.address,
+          })
+          .eq('id', authData.user.id);
+        if (updateError) console.warn('Update error:', updateError);
+      }
 
       toast.success('Driver registered successfully!', {
         description: `Email: ${formData.email}\nTemporary Password: ${tempPassword}`,
