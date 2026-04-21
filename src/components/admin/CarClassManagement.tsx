@@ -31,13 +31,16 @@ export function CarClassManagement() {
 
   const loadClasses = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('car_classes').select('*').order('name');
-    if (error) {
-      toast.error('Failed to load car classes');
-    } else {
+    try {
+      const { data, error } = await supabase.from('car_classes').select('*').order('name');
+      if (error) throw error;
       setClasses(data || []);
+    } catch (error: any) {
+      console.error('Error loading classes:', error);
+      toast.error('Failed to load car classes: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleEdit = (carClass: CarClass) => {
@@ -51,34 +54,37 @@ export function CarClassManagement() {
 
   const handleSaveEdit = async (id: string) => {
     setSaving(true);
-    const { error } = await supabase
-      .from('car_classes')
-      .update({
-        name: editForm.name,
-        description: editForm.description,
-        weekly_fuel_limit: editForm.weekly_fuel_limit,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-    if (error) {
-      toast.error('Failed to update');
-    } else {
+    try {
+      const { error } = await supabase
+        .from('car_classes')
+        .update({
+          name: editForm.name,
+          description: editForm.description,
+          weekly_fuel_limit: editForm.weekly_fuel_limit,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+      if (error) throw error;
       toast.success('Updated successfully');
-      loadClasses();
+      await loadClasses();
       setEditingId(null);
+    } catch (error: any) {
+      toast.error('Failed to update: ' + error.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleToggleActive = async (id: string, currentActive: boolean) => {
-    const { error } = await supabase
-      .from('car_classes')
-      .update({ is_active: !currentActive })
-      .eq('id', id);
-    if (error) {
-      toast.error('Failed to update status');
-    } else {
-      loadClasses();
+    try {
+      const { error } = await supabase
+        .from('car_classes')
+        .update({ is_active: !currentActive })
+        .eq('id', id);
+      if (error) throw error;
+      await loadClasses();
+    } catch (error: any) {
+      toast.error('Failed to update status: ' + error.message);
     }
   };
 
@@ -88,20 +94,22 @@ export function CarClassManagement() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('car_classes').insert({
-      name: newClass.name,
-      description: newClass.description,
-      weekly_fuel_limit: newClass.weekly_fuel_limit,
-    });
-    if (error) {
-      toast.error('Failed to add');
-    } else {
+    try {
+      const { error } = await supabase.from('car_classes').insert({
+        name: newClass.name,
+        description: newClass.description,
+        weekly_fuel_limit: newClass.weekly_fuel_limit,
+      });
+      if (error) throw error;
       toast.success('Car class added');
       setIsAddOpen(false);
       setNewClass({ name: '', description: '', weekly_fuel_limit: 0 });
-      loadClasses();
+      await loadClasses();
+    } catch (error: any) {
+      toast.error('Failed to add: ' + error.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
@@ -139,7 +147,7 @@ export function CarClassManagement() {
                 <Input type="number" value={editForm.weekly_fuel_limit} onChange={e => setEditForm({...editForm, weekly_fuel_limit: parseInt(e.target.value)})} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => handleSaveEdit(c.id)} disabled={saving}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
                     Save
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
