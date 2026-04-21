@@ -187,7 +187,13 @@ export const reservationService = {
 
       const pricePerLiter = inventory.custom_price_per_liter || inventory.fuel_type.base_price_per_liter;
       const totalPrice = pricePerLiter * reservationData.quantity;
-
+      
+      // After getting slot and inventory, before inserting reservation:
+      const { data: limitCheck, error: limitError } = await supabase
+      .rpc('check_driver_weekly_limit', { p_driver_id: driverId, p_quantity: reservationData.quantity });
+      if (limitError || !limitCheck) {
+      throw new Error('Weekly fuel limit exceeded. Please try again next week.');
+      }
       // Generate pickup code
       const pickupCode = Math.floor(100000 + Math.random() * 900000).toString();
 
