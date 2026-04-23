@@ -21,6 +21,7 @@ interface FuelTypeSelectorProps {
   onSelectFuel: (fuelTypeId: string, quantity: number, pricePerLiter: number, totalPrice: number) => void;
   selectedFuelTypeId?: string;
   selectedQuantity?: number;
+  preferredFuelTypeId?: string;  // new prop
 }
 
 export function FuelTypeSelector({
