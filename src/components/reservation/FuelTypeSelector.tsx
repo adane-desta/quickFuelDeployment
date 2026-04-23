@@ -29,6 +29,7 @@ export function FuelTypeSelector({
   onSelectFuel,
   selectedFuelTypeId,
   selectedQuantity = 10,
+  preferredFuelTypeId 
 }: FuelTypeSelectorProps) {
   const [inventory, setInventory] = useState<StationFuelInventory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,11 @@ export function FuelTypeSelector({
     setLoading(true);
     try {
       const data = await inventoryService.getStationInventory(stationId);
-      const available = data.filter((inv) => inv.is_available);
+      let available = data.filter(inv => inv.is_available);
+      if (preferredFuelTypeId) {
+        // Filter to only the preferred fuel type
+        available = available.filter(inv => inv.fuel_type_id === preferredFuelTypeId);
+      }
       setInventory(available);
 
       // Auto-select if only one option or pre-selected
