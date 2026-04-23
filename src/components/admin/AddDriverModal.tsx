@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, User, Mail, Phone, MapPin, Car, FileText } from 'lucide-react';
+import { X, Loader2, User, Mail, Phone, MapPin, Car, FileText, Fuel } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase/client';
-import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
+import { validateEthiopianPhone, formatEthiopianPhone, validateEmail, validatePlateNumber } from '../../lib/supabase/config';
 
 interface AddDriverModalProps {
   isOpen: boolean;
@@ -21,11 +21,19 @@ interface CarClass {
   weekly_fuel_limit: number;
 }
 
+interface FuelType {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalProps) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [carClasses, setCarClasses] = useState<CarClass[]>([]);
+  const [fuelTypes, setFuelTypes] = useState<FuelType[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [loadingFuelTypes, setLoadingFuelTypes] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -35,11 +43,15 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
     carClassId: '',
     vehicleModel: '',
     plateNumber: '',
+    preferredFuelTypeId: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (isOpen) loadCarClasses();
+    if (isOpen) {
+      loadCarClasses();
+      loadFuelTypes();
+    }
   }, [isOpen]);
 
   const loadCarClasses = async () => {
@@ -53,10 +65,26 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       if (error) throw error;
       setCarClasses(data || []);
     } catch (error: any) {
-      console.error('Error loading car classes:', error);
-      toast.error('Failed to load car classes: ' + error.message);
+      toast.error('Failed to load car classes');
     } finally {
       setLoadingClasses(false);
+    }
+  };
+
+  const loadFuelTypes = async () => {
+    setLoadingFuelTypes(true);
+    try {
+      const { data, error } = await supabase
+        .from('fuel_types')
+        .select('id, name, code')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      setFuelTypes(data || []);
+    } catch (error: any) {
+      toast.error('Failed to load fuel types');
+    } finally {
+      setLoadingFuelTypes(false);
     }
   };
 
@@ -64,11 +92,11 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
     const newErrors: Record<string, string> = {};
     if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!validateEmail(formData.email)) newErrors.email = 'Invalid email';
+    else if (!validateEmail(formData.email)) newErrors.email = 'Invalid email format';
     if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
-    else if (!validateEthiopianPhone(formData.phone)) newErrors.phone = 'Invalid Ethiopian phone';
+    else if (!validateEthiopianPhone(formData.phone)) newErrors.phone = 'Invalid Ethiopian phone number (e.g., +251912345678)';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.licenseNumber.trim()) newErrors.licenseNumber = 'License number is required';
+    if (!formData.licenseNumber.trim()) newErrors.licenseNumber = 'Driver license number is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -78,6 +106,8 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
     if (!formData.carClassId) newErrors.carClassId = 'Please select a car class';
     if (!formData.vehicleModel.trim()) newErrors.vehicleModel = 'Vehicle model is required';
     if (!formData.plateNumber.trim()) newErrors.plateNumber = 'Plate number is required';
+    else if (!validatePlateNumber(formData.plateNumber)) newErrors.plateNumber = 'Invalid plate number format (e.g., AA-3-12345)';
+    if (!formData.preferredFuelTypeId) newErrors.preferredFuelTypeId = 'Please select preferred fuel type';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -101,8 +131,8 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
     try {
       const tempPassword = generateRandomPassword();
       const formattedPhone = formatEthiopianPhone(formData.phone);
+      const formattedPlate = formData.plateNumber.toUpperCase();
 
-      // Call edge function to create user (auth + profile)
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: formData.email,
@@ -114,12 +144,13 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
           license_number: formData.licenseNumber,
           car_class_id: formData.carClassId,
           vehicle_model: formData.vehicleModel,
-          plate_number: formData.plateNumber,
+          plate_number: formattedPlate,
+          preferred_fuel_type_id: formData.preferredFuelTypeId,
         },
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Unknown error');
+      if (!data.success) throw new Error(data.error || 'Registration failed');
 
       toast.success('Driver registered successfully!', {
         description: `Email: ${formData.email}\nTemporary Password: ${tempPassword}`,
@@ -129,8 +160,15 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       onClose();
       resetForm();
     } catch (error: any) {
-      console.error('Registration error:', error);
-      toast.error('Registration failed', { description: error.message });
+      let friendlyMessage = 'Registration failed. Please try again.';
+      if (error.message.includes('duplicate key')) {
+        if (error.message.includes('email')) friendlyMessage = 'This email is already registered.';
+        else if (error.message.includes('plate_number')) friendlyMessage = 'This plate number is already registered.';
+        else friendlyMessage = 'Duplicate entry. Please check your information.';
+      } else if (error.message.includes('invalid')) {
+        friendlyMessage = error.message;
+      }
+      toast.error(friendlyMessage);
     } finally {
       setLoading(false);
     }
@@ -139,7 +177,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
   const resetForm = () => {
     setFormData({
       fullName: '', email: '', phone: '', address: '', licenseNumber: '',
-      carClassId: '', vehicleModel: '', plateNumber: '',
+      carClassId: '', vehicleModel: '', plateNumber: '', preferredFuelTypeId: '',
     });
     setStep(1);
     setErrors({});
@@ -148,6 +186,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
   if (!isOpen) return null;
 
   const selectedClass = carClasses.find(c => c.id === formData.carClassId);
+  const selectedFuel = fuelTypes.find(f => f.id === formData.preferredFuelTypeId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -176,11 +215,11 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
           {step === 1 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Personal Information</h3>
-              <div><Label>Full Name *</Label><Input value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className={errors.fullName ? 'border-red-500' : ''} /></div>
-              <div><Label>Email *</Label><Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className={errors.email ? 'border-red-500' : ''} /></div>
-              <div><Label>Phone *</Label><Input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+251 912 345 678" className={errors.phone ? 'border-red-500' : ''} /></div>
-              <div><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className={errors.address ? 'border-red-500' : ''} /></div>
-              <div><Label>Driver's License Number *</Label><Input value={formData.licenseNumber} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className={errors.licenseNumber ? 'border-red-500' : ''} /></div>
+              <div><Label>Full Name *</Label><Input value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className={errors.fullName ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.fullName}</p></div>
+              <div><Label>Email *</Label><Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className={errors.email ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.email}</p></div>
+              <div><Label>Phone *</Label><Input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+251 912 345 678" className={errors.phone ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.phone}</p></div>
+              <div><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className={errors.address ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.address}</p></div>
+              <div><Label>Driver's License Number *</Label><Input value={formData.licenseNumber} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className={errors.licenseNumber ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.licenseNumber}</p></div>
             </div>
           )}
 
@@ -189,26 +228,32 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
               <h3 className="text-lg font-semibold">Vehicle Information</h3>
               <div>
                 <Label>Car Class *</Label>
-                {loadingClasses ? (
-                  <div className="flex items-center gap-2 p-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading classes...</div>
-                ) : carClasses.length === 0 ? (
-                  <div className="p-2 text-red-600">No car classes available. Please contact admin.</div>
-                ) : (
+                {loadingClasses ? <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div> : (
                   <Select value={formData.carClassId} onValueChange={val => setFormData({...formData, carClassId: val})}>
-                    <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select car class" />
-                    </SelectTrigger>
+                    <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}><SelectValue placeholder="Select car class" /></SelectTrigger>
                     <SelectContent>
-                      {carClasses.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name} – {c.weekly_fuel_limit} L/week</SelectItem>
-                      ))}
+                      {carClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name} – {c.weekly_fuel_limit} L/week</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}
+                <p className="text-red-500 text-xs mt-1">{errors.carClassId}</p>
                 {selectedClass && <p className="text-xs text-gray-500 mt-1">Weekly fuel limit: {selectedClass.weekly_fuel_limit} liters</p>}
               </div>
-              <div><Label>Vehicle Model *</Label><Input value={formData.vehicleModel} onChange={e => setFormData({...formData, vehicleModel: e.target.value})} /></div>
-              <div><Label>Plate Number *</Label><Input value={formData.plateNumber} onChange={e => setFormData({...formData, plateNumber: e.target.value.toUpperCase()})} placeholder="AA-3-12345" /></div>
+              <div><Label>Vehicle Model *</Label><Input value={formData.vehicleModel} onChange={e => setFormData({...formData, vehicleModel: e.target.value})} className={errors.vehicleModel ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.vehicleModel}</p></div>
+              <div><Label>Plate Number *</Label><Input value={formData.plateNumber} onChange={e => setFormData({...formData, plateNumber: e.target.value.toUpperCase()})} placeholder="AA-3-12345" className={errors.plateNumber ? 'border-red-500' : ''} /><p className="text-red-500 text-xs mt-1">{errors.plateNumber}</p></div>
+              <div>
+                <Label>Preferred Fuel Type *</Label>
+                {loadingFuelTypes ? <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div> : (
+                  <Select value={formData.preferredFuelTypeId} onValueChange={val => setFormData({...formData, preferredFuelTypeId: val})}>
+                    <SelectTrigger className={errors.preferredFuelTypeId ? 'border-red-500' : ''}><SelectValue placeholder="Select fuel type" /></SelectTrigger>
+                    <SelectContent>
+                      {fuelTypes.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-red-500 text-xs mt-1">{errors.preferredFuelTypeId}</p>
+                {selectedFuel && <p className="text-xs text-gray-500 mt-1">This will be the only fuel type shown when the driver makes a reservation.</p>}
+              </div>
             </div>
           )}
 
@@ -223,6 +268,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
                 <p><strong>License:</strong> {formData.licenseNumber}</p>
                 <p><strong>Car Class:</strong> {selectedClass?.name} ({selectedClass?.weekly_fuel_limit} L/week)</p>
                 <p><strong>Vehicle:</strong> {formData.vehicleModel} – {formData.plateNumber}</p>
+                <p><strong>Preferred Fuel:</strong> {selectedFuel?.name}</p>
               </div>
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-900">A temporary password will be generated and shown after registration. The driver can change it after first login.</p>
@@ -233,9 +279,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
 
         {/* Footer */}
         <div className="border-t border-gray-200 px-6 py-4 flex justify-between bg-gray-50">
-          <div>
-            {step > 1 && <Button variant="outline" onClick={handleBack} disabled={loading}>Back</Button>}
-          </div>
+          <div>{step > 1 && <Button variant="outline" onClick={handleBack} disabled={loading}>Back</Button>}</div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
             {step < 3 ? (
