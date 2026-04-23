@@ -8,6 +8,7 @@
 import { supabase } from './client';
 import { notifyError, logError } from '../utils/notifications';
 import { db } from './services';
+import { formatEthiopianPhone } from './config';
 import type {
   User,
   Station,
@@ -120,22 +121,32 @@ export const userService = {
     full_name: string;
     phone: string;
     station_id: string;
-  }): Promise<boolean> {
-    const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
-    const result = await db.users.createUserViaEdge({
-      email: operatorData.email,
-      password: tempPassword,
-      full_name: operatorData.full_name,
-      phone: operatorData.phone,
-      role: 'operator',
-      station_id: operatorData.station_id,
-    });
-    if (result.success) {
-      console.log(`Operator created: ${operatorData.email} / ${tempPassword}`);
-      return true;
+  }): Promise<{ success: boolean; password?: string; error?: string }> {
+    try {
+      const tempPassword = `QF${Math.random().toString(36).slice(-8)}!`;
+      const formattedPhone = formatEthiopianPhone(operatorData.phone);
+  
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: operatorData.email,
+          password: tempPassword,
+          full_name: operatorData.full_name,
+          phone: formattedPhone,
+          role: 'operator',
+          station_id: operatorData.station_id,
+          operator_status: 'active',
+          hired_date: new Date().toISOString().split('T')[0],
+        },
+      });
+  
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to create operator');
+  
+      return { success: true, password: tempPassword };
+    } catch (error: any) {
+      console.error('createOperator error:', error);
+      return { success: false, error: error.message };
     }
-    notifyError('Failed to create operator', result.error);
-    return false;
   },
 
   /**
