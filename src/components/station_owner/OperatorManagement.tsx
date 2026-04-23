@@ -1,12 +1,5 @@
-// =====================================================
-// OPERATOR MANAGEMENT - STATION OWNER COMPONENT
-// =====================================================
-// Manage station operators: add, block, remove
-// Creates auth accounts + database profiles
-// =====================================================
-
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Shield, ShieldOff, Trash2, Mail, Phone, Calendar, Activity } from 'lucide-react';
+import { UserPlus, Shield, ShieldOff, Mail, Phone, Calendar, Activity } from 'lucide-react';
 import { userService } from '../../lib/supabase/database';
 import { notifications, notifyError, notifyWarning } from '../../lib/utils/notifications';
 import { validateEthiopianPhone, validateEmail, formatEthiopianPhone } from '../../lib/supabase/config';

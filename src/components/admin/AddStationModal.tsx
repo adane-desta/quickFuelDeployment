@@ -16,9 +16,9 @@ interface AddStationModalProps {
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // Ethiopian / Jimma coordinate bounds
-const MIN_LAT = 8.0;
+const MIN_LAT = 7.0;
 const MAX_LAT = 10.0;
-const MIN_LNG = 37.0;
+const MIN_LNG = 36.0;
 const MAX_LNG = 40.0;
 
 export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalProps) {

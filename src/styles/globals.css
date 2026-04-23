@@ -202,12 +202,12 @@ html {
 }
 
 /* Ensure dialog overlay doesn't capture clicks */
-.fixed.inset-0.z-50 {
+/* .fixed.inset-0.z-50 {
   pointer-events: none;
 }
 .fixed.inset-0.z-50 > div {
   pointer-events: auto;
-}
+} */
 
 /* Ensure Radix UI select portal appears above modal */
 [data-radix-popper-content-wrapper] {
@@ -218,4 +218,3 @@ html {
 [data-radix-portal] {
   z-index: 9999 !important;
 }
-
