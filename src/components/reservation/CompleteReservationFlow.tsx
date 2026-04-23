@@ -34,6 +34,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
   const [creating, setCreating] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(initialStation);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [preferredFuelId, setPreferredFuelId] = useState<string | null>(null);
   const [fuelData, setFuelData] = useState<{
     fuelTypeId: string;
     quantity: number;
@@ -44,10 +45,26 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
   
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const fetchDriverPref = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('users')
+          .select('preferred_fuel_type_id')
+          .eq('id', user.id)
+          .single();
+        setPreferredFuelId(data?.preferred_fuel_type_id);
+      }
+    };
+  
+    // Run the fetch when user changes
+    fetchDriverPref();
+  
+    // Scroll to top when currentStep changes
     if (contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
-  }, [currentStep]);
+  }, [user, currentStep]);
+  
 
   const handleStationSelect = (station: Station) => {
     setSelectedStation(station);
