@@ -218,6 +218,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
                 onSelectFuel={handleFuelSelect}
                 selectedFuelTypeId={fuelData?.fuelTypeId}
                 selectedQuantity={fuelData?.quantity}
+                preferredFuelTypeId={preferredFuelId}
               />
               <div className="mt-6">
                 <Button
