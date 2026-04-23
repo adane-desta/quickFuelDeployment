@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock, Calendar, AlertCircle, Fuel, Droplet } from 'lucide-react';
+import { X, Loader2, Building2, MapPin, Phone, Mail, FileText, Clock, Calendar, AlertCircle, Fuel } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase/client';
-import { db } from '../../lib/supabase/services';
 import { validateEthiopianPhone, formatEthiopianPhone, validateEmail } from '../../lib/supabase/config';
 
 interface AddStationModalProps {
@@ -14,8 +13,13 @@ interface AddStationModalProps {
   onSuccess: () => void;
 }
 
-// Days of week for operating days selection
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Ethiopian / Jimma coordinate bounds
+const MIN_LAT = 8.0;
+const MAX_LAT = 10.0;
+const MIN_LNG = 37.0;
+const MAX_LNG = 40.0;
 
 export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalProps) {
   const [loading, setLoading] = useState(false);
@@ -27,6 +31,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     // Station Details
     stationName: '',
     address: '',
+    landmark: '',           // new field
     phone: '',
     latitude: '',
     longitude: '',
@@ -48,16 +53,14 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     ownerPhone: '',
     ownerBusinessLicense: '',
     
-    // Fuel Inventory (dynamic, keyed by fuel_type_id)
+    // Fuel Inventory
     fuelStock: {} as Record<string, number>,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (isOpen) {
-      loadFuelTypes();
-    }
+    if (isOpen) loadFuelTypes();
   }, [isOpen]);
 
   const loadFuelTypes = async () => {
@@ -69,25 +72,22 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         .eq('is_active', true);
       if (error) throw error;
       setFuelTypes(data || []);
-      // Initialize stock object with default 0 for each fuel type
       const initialStock: Record<string, number> = {};
       (data || []).forEach(ft => { initialStock[ft.id] = 0; });
       setFormData(prev => ({ ...prev, fuelStock: initialStock }));
     } catch (error) {
-      console.error('Error loading fuel types:', error);
       toast.error('Failed to load fuel types');
     } finally {
       setLoadingFuelTypes(false);
     }
   };
 
-  if (!isOpen) return null;
-
   const validateStep1 = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.stationName.trim()) newErrors.stationName = 'Station name is required';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
+    if (!formData.landmark.trim()) newErrors.landmark = 'Landmark is required';
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
     } else if (!validateEthiopianPhone(formData.phone)) {
@@ -98,7 +98,13 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     } else {
       const lat = parseFloat(formData.latitude);
       const lng = parseFloat(formData.longitude);
-      if (isNaN(lat) || isNaN(lng)) newErrors.location = 'Invalid coordinates';
+      if (isNaN(lat) || isNaN(lng)) {
+        newErrors.location = 'Invalid coordinates (must be numbers)';
+      } else if (lat < MIN_LAT || lat > MAX_LAT) {
+        newErrors.location = `Latitude must be between ${MIN_LAT} and ${MAX_LAT}`;
+      } else if (lng < MIN_LNG || lng > MAX_LNG) {
+        newErrors.location = `Longitude must be between ${MIN_LNG} and ${MAX_LNG}`;
+      }
     }
     if (!formData.businessLicense.trim()) newErrors.businessLicense = 'Business license number is required';
     if (!formData.numberOfPumps.trim() || parseInt(formData.numberOfPumps) <= 0) newErrors.numberOfPumps = 'Valid number of pumps is required';
@@ -131,8 +137,6 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
   };
 
   const validateStep3 = () => {
-    // At least one fuel type must have positive stock? Not mandatory – station can start with zero.
-    // We'll just ensure numbers are valid.
     for (const [id, stock] of Object.entries(formData.fuelStock)) {
       if (isNaN(stock) || stock < 0) {
         toast.error(`Invalid stock value for ${fuelTypes.find(ft => ft.id === id)?.name}`);
@@ -152,9 +156,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     let password = '';
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let i = 0; i < 12; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
     return password;
   };
 
@@ -164,71 +166,33 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     setLoading(true);
 
     try {
-      // 1. Ensure the current user is an admin
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
-        toast.error('You must be logged in');
-        return;
-      }
-      const { data: adminCheck } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single();
-      if (adminCheck?.role !== 'admin') {
-        toast.error('Admin privileges required');
-        return;
-      }
-
       const tempPassword = generateRandomPassword();
       const formattedOwnerPhone = formatEthiopianPhone(formData.ownerPhone);
+      const formattedStationPhone = formatEthiopianPhone(formData.phone);
 
-      // 2. Create the auth user for station owner
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.ownerEmail,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: formData.ownerName,
-            phone: formattedOwnerPhone,
-            role: 'station_owner',
-            business_license_number: formData.ownerBusinessLicense,
-          },
-          emailRedirectTo: undefined,
-        },
-      });
-
-      if (authError) throw new Error(`Failed to create owner account: ${authError.message}`);
-      if (!authData.user) throw new Error('No user data returned');
-
-      const ownerId = authData.user.id;
-
-      // 3. Wait for trigger to create base user record (or insert manually)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const { error: upsertError } = await supabase
-        .from('users')
-        .upsert({
-          id: ownerId,
+      // 1. Create station owner via edge function
+      const { data: ownerData, error: ownerError } = await supabase.functions.invoke('create-user', {
+        body: {
           email: formData.ownerEmail,
+          password: tempPassword,
           full_name: formData.ownerName,
           phone: formattedOwnerPhone,
           role: 'station_owner',
           business_license_number: formData.ownerBusinessLicense,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
-      
-      if (upsertError) {
-        console.log(upsertError)
-        throw new Error('Failed to create owner profile');
-      }
+        },
+      });
 
-      // 4. Create the station
+      if (ownerError) throw new Error(ownerError.message);
+      if (!ownerData.success) throw new Error(ownerData.error || 'Failed to create owner');
+
+      const ownerId = ownerData.user_id;
+
+      // 2. Create station
       const stationData = {
         name: formData.stationName,
         address: formData.address,
-        phone: formatEthiopianPhone(formData.phone),
+        landmark: formData.landmark,
+        phone: formattedStationPhone,
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         owner_id: ownerId,
@@ -243,7 +207,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         closing_time: formData.is24Hours ? '23:59' : formData.closingTime,
         is_24_hours: formData.is24Hours,
         operating_days: formData.operatingDays,
-        is_verified: true,   // Admin-created stations can be auto-verified
+        is_verified: true, // admin created, auto-verify
         is_active: true,
       };
 
@@ -255,13 +219,13 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
       if (stationError) throw new Error(`Failed to create station: ${stationError.message}`);
 
-      // 5. Insert fuel inventory for each fuel type
+      // 3. Insert fuel inventory
       const inventoryInserts = fuelTypes.map(ft => ({
         station_id: station.id,
         fuel_type_id: ft.id,
         current_stock: formData.fuelStock[ft.id] || 0,
-        minimum_stock_threshold: 500,   // default 500L
-        maximum_capacity: 10000,        // default 10,000L
+        minimum_stock_threshold: 500,
+        maximum_capacity: 10000,
         is_available: (formData.fuelStock[ft.id] || 0) > 500,
       }));
 
@@ -270,15 +234,13 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         .insert(inventoryInserts);
 
       if (inventoryError) {
-        console.error('Failed to insert inventory:', inventoryError);
-        toast.error('Station created but inventory setup failed. Please add fuel manually.');
-      } else {
-        toast.success('Fuel inventory initialized');
+        console.error('Inventory insert failed:', inventoryError);
+        toast.warning('Station created but inventory setup failed. Please add fuel manually.');
       }
 
-      // 6. Log activity
+      // 4. Log activity
       await supabase.from('system_activity').insert({
-        user_id: currentUser.id,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
         user_role: 'admin',
         action: 'STATION_CREATED',
         description: `New station registered: ${formData.stationName}`,
@@ -288,7 +250,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
       });
 
       toast.success('Station registered successfully!', {
-        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}\n\nInventory has been set up.`,
+        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}`,
         duration: 10000,
       });
 
@@ -296,10 +258,18 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
       onClose();
       resetForm();
     } catch (error: any) {
-      console.error('Error creating station:', error);
-      toast.error('Failed to register station', {
-        description: error.message || 'Please try again',
-      });
+      console.error(error);
+      let friendlyMessage = 'Failed to register station. ';
+      if (error.message.includes('duplicate key')) {
+        if (error.message.includes('email')) friendlyMessage = 'Owner email already registered.';
+        else if (error.message.includes('phone')) friendlyMessage = 'Phone number already used.';
+        else friendlyMessage = 'Duplicate entry.';
+      } else if (error.message.includes('invalid')) {
+        friendlyMessage = error.message;
+      } else {
+        friendlyMessage = error.message || 'Please try again.';
+      }
+      toast.error(friendlyMessage);
     } finally {
       setLoading(false);
     }
@@ -307,31 +277,16 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
   const resetForm = () => {
     setFormData({
-      stationName: '',
-      address: '',
-      phone: '',
-      latitude: '',
-      longitude: '',
-      businessLicense: '',
-      operatingLicense: '',
-      environmentalClearance: '',
-      fireSafetyCertificate: '',
-      licenseExpiryDate: '',
-      numberOfPumps: '',
-      vehiclesPerPumpPerSlot: '',
-      openingTime: '06:00',
-      closingTime: '22:00',
-      is24Hours: false,
-      operatingDays: WEEKDAYS,
-      ownerName: '',
-      ownerEmail: '',
-      ownerPhone: '',
-      ownerBusinessLicense: '',
+      stationName: '', address: '', landmark: '', phone: '', latitude: '', longitude: '',
+      businessLicense: '', operatingLicense: '', environmentalClearance: '', fireSafetyCertificate: '',
+      licenseExpiryDate: '', numberOfPumps: '', vehiclesPerPumpPerSlot: '',
+      openingTime: '06:00', closingTime: '22:00', is24Hours: false, operatingDays: WEEKDAYS,
+      ownerName: '', ownerEmail: '', ownerPhone: '', ownerBusinessLicense: '',
       fuelStock: {},
     });
     setStep(1);
     setErrors({});
-    loadFuelTypes(); // reload to reset stock object
+    loadFuelTypes();
   };
 
   const handleChange = (field: string, value: any) => {
@@ -354,8 +309,10 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
     handleChange('operatingDays', newDays);
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-900/50 to-blue-900/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 flex items-center justify-between">
@@ -368,7 +325,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
               <p className="text-sm text-purple-100">Step {step} of 3</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors" disabled={loading}>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg" disabled={loading}>
             <X className="w-6 h-6 text-white" />
           </button>
         </div>
@@ -380,270 +337,97 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-          {step === 1 ? (
+          {step === 1 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Details</h3>
-
-              {/* Basic Info */}
-              <div>
-                <Label htmlFor="stationName">Station Name *</Label>
-                <div className="mt-1 relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input id="stationName" value={formData.stationName} onChange={e => handleChange('stationName', e.target.value)}
-                    placeholder="e.g., Shell Station Downtown" className={`pl-10 ${errors.stationName ? 'border-red-500' : ''}`} />
-                </div>
-                {errors.stationName && <p className="text-sm text-red-600 mt-1">{errors.stationName}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="address">Address *</Label>
-                <div className="mt-1 relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input id="address" value={formData.address} onChange={e => handleChange('address', e.target.value)}
-                    placeholder="e.g., Bole Road, Addis Ababa" className={`pl-10 ${errors.address ? 'border-red-500' : ''}`} />
-                </div>
-                {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="phone">Station Phone *</Label>
-                <div className="mt-1 relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input id="phone" value={formData.phone} onChange={e => handleChange('phone', e.target.value)}
-                    placeholder="+251 912 345 678" className={`pl-10 ${errors.phone ? 'border-red-500' : ''}`} />
-                </div>
-                {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
-              </div>
-
+              <h3 className="text-lg font-semibold">Station Details</h3>
+              <div><Label>Station Name *</Label><Input value={formData.stationName} onChange={e => handleChange('stationName', e.target.value)} className={errors.stationName ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.stationName}</p></div>
+              <div><Label>Address *</Label><Input value={formData.address} onChange={e => handleChange('address', e.target.value)} className={errors.address ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.address}</p></div>
+              <div><Label>Landmark *</Label><Input value={formData.landmark} onChange={e => handleChange('landmark', e.target.value)} placeholder="Near Jimma University, etc." className={errors.landmark ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.landmark}</p></div>
+              <div><Label>Phone *</Label><Input value={formData.phone} onChange={e => handleChange('phone', e.target.value)} placeholder="+251 912 345 678" className={errors.phone ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.phone}</p></div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="latitude">Latitude *</Label>
-                  <Input id="latitude" value={formData.latitude} onChange={e => handleChange('latitude', e.target.value)}
-                    placeholder="9.0192" className={errors.location ? 'border-red-500' : ''} />
-                </div>
-                <div>
-                  <Label htmlFor="longitude">Longitude *</Label>
-                  <Input id="longitude" value={formData.longitude} onChange={e => handleChange('longitude', e.target.value)}
-                    placeholder="38.7525" className={errors.location ? 'border-red-500' : ''} />
-                </div>
+                <div><Label>Latitude *</Label><Input value={formData.latitude} onChange={e => handleChange('latitude', e.target.value)} placeholder="e.g., 9.0192" className={errors.location ? 'border-red-500' : ''} /></div>
+                <div><Label>Longitude *</Label><Input value={formData.longitude} onChange={e => handleChange('longitude', e.target.value)} placeholder="e.g., 38.7525" className={errors.location ? 'border-red-500' : ''} /></div>
               </div>
-              {errors.location && <p className="text-sm text-red-600 mt-1">{errors.location}</p>}
+              <p className="text-red-500 text-xs">{errors.location}</p>
 
               {/* Operating Hours */}
-              <div>
-                <Label className="mb-2 block">Operating Schedule</Label>
+              <div><Label className="mb-2 block">Operating Schedule</Label>
                 <div className="flex items-center gap-2 mb-3">
-                  <input type="checkbox" id="is24Hours" checked={formData.is24Hours}
-                    onChange={e => handleChange('is24Hours', e.target.checked)} className="w-4 h-4" />
+                  <input type="checkbox" id="is24Hours" checked={formData.is24Hours} onChange={e => handleChange('is24Hours', e.target.checked)} className="w-4 h-4" />
                   <Label htmlFor="is24Hours" className="cursor-pointer">24/7 Operation</Label>
                 </div>
                 {!formData.is24Hours && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="openingTime">Opening Time</Label>
-                      <Input type="time" id="openingTime" value={formData.openingTime}
-                        onChange={e => handleChange('openingTime', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label htmlFor="closingTime">Closing Time</Label>
-                      <Input type="time" id="closingTime" value={formData.closingTime}
-                        onChange={e => handleChange('closingTime', e.target.value)} />
-                    </div>
+                    <div><Label>Opening Time</Label><Input type="time" value={formData.openingTime} onChange={e => handleChange('openingTime', e.target.value)} /></div>
+                    <div><Label>Closing Time</Label><Input type="time" value={formData.closingTime} onChange={e => handleChange('closingTime', e.target.value)} /></div>
                   </div>
                 )}
               </div>
 
-              {/* Operating Days */}
-              <div>
-                <Label className="mb-2 block">Operating Days</Label>
+              <div><Label className="mb-2 block">Operating Days</Label>
                 <div className="flex flex-wrap gap-2">
                   {WEEKDAYS.map(day => (
-                    <button key={day} type="button"
-                      onClick={() => toggleDay(day)}
-                      className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                        formData.operatingDays.includes(day)
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {day.slice(0, 3)}
-                    </button>
+                    <button key={day} type="button" onClick={() => toggleDay(day)} className={`px-3 py-1.5 rounded-full text-sm ${formData.operatingDays.includes(day) ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700'}`}>{day.slice(0,3)}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Licenses & Capacity */}
-              <div>
-                <Label htmlFor="businessLicense">Business License Number *</Label>
-                <Input id="businessLicense" value={formData.businessLicense} onChange={e => handleChange('businessLicense', e.target.value)}
-                  placeholder="BL-2024-XXXX" className={errors.businessLicense ? 'border-red-500' : ''} />
-                {errors.businessLicense && <p className="text-sm text-red-600 mt-1">{errors.businessLicense}</p>}
-              </div>
-
+              <div><Label>Business License Number *</Label><Input value={formData.businessLicense} onChange={e => handleChange('businessLicense', e.target.value)} className={errors.businessLicense ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.businessLicense}</p></div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="operatingLicense">Operating License Number</Label>
-                  <Input id="operatingLicense" value={formData.operatingLicense} onChange={e => handleChange('operatingLicense', e.target.value)}
-                    placeholder="Optional" />
-                </div>
-                <div>
-                  <Label htmlFor="licenseExpiryDate">License Expiry Date</Label>
-                  <Input type="date" id="licenseExpiryDate" value={formData.licenseExpiryDate}
-                    onChange={e => handleChange('licenseExpiryDate', e.target.value)} />
-                </div>
+                <div><Label>Operating License Number</Label><Input value={formData.operatingLicense} onChange={e => handleChange('operatingLicense', e.target.value)} placeholder="Optional" /></div>
+                <div><Label>License Expiry Date</Label><Input type="date" value={formData.licenseExpiryDate} onChange={e => handleChange('licenseExpiryDate', e.target.value)} /></div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="numberOfPumps">Number of Pumps *</Label>
-                  <Input type="number" id="numberOfPumps" value={formData.numberOfPumps}
-                    onChange={e => handleChange('numberOfPumps', e.target.value)} placeholder="e.g., 4"
-                    className={errors.numberOfPumps ? 'border-red-500' : ''} />
-                  {errors.numberOfPumps && <p className="text-sm text-red-600 mt-1">{errors.numberOfPumps}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="vehiclesPerPumpPerSlot">Vehicles per Pump per Slot *</Label>
-                  <Input type="number" id="vehiclesPerPumpPerSlot" value={formData.vehiclesPerPumpPerSlot}
-                    onChange={e => handleChange('vehiclesPerPumpPerSlot', e.target.value)} placeholder="e.g., 2"
-                    className={errors.vehiclesPerPumpPerSlot ? 'border-red-500' : ''} />
-                  {errors.vehiclesPerPumpPerSlot && <p className="text-sm text-red-600 mt-1">{errors.vehiclesPerPumpPerSlot}</p>}
-                </div>
+                <div><Label>Number of Pumps *</Label><Input type="number" value={formData.numberOfPumps} onChange={e => handleChange('numberOfPumps', e.target.value)} className={errors.numberOfPumps ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.numberOfPumps}</p></div>
+                <div><Label>Vehicles per Pump per Slot *</Label><Input type="number" value={formData.vehiclesPerPumpPerSlot} onChange={e => handleChange('vehiclesPerPumpPerSlot', e.target.value)} className={errors.vehiclesPerPumpPerSlot ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.vehiclesPerPumpPerSlot}</p></div>
               </div>
-
-              {/* Optional license numbers */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="environmentalClearance">Environmental Clearance No.</Label>
-                  <Input id="environmentalClearance" value={formData.environmentalClearance}
-                    onChange={e => handleChange('environmentalClearance', e.target.value)} placeholder="Optional" />
-                </div>
-                <div>
-                  <Label htmlFor="fireSafetyCertificate">Fire Safety Certificate No.</Label>
-                  <Input id="fireSafetyCertificate" value={formData.fireSafetyCertificate}
-                    onChange={e => handleChange('fireSafetyCertificate', e.target.value)} placeholder="Optional" />
-                </div>
+                <div><Label>Environmental Clearance No.</Label><Input value={formData.environmentalClearance} onChange={e => handleChange('environmentalClearance', e.target.value)} placeholder="Optional" /></div>
+                <div><Label>Fire Safety Certificate No.</Label><Input value={formData.fireSafetyCertificate} onChange={e => handleChange('fireSafetyCertificate', e.target.value)} placeholder="Optional" /></div>
               </div>
+              <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800"><AlertCircle className="w-4 h-4 inline mr-1" /> Fuel inventory will be set in the next step.</div>
             </div>
-          ) : step === 2 ? (
+          )}
+
+          {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Owner Details</h3>
-
-              <div>
-                <Label htmlFor="ownerName">Owner Full Name *</Label>
-                <Input id="ownerName" value={formData.ownerName} onChange={e => handleChange('ownerName', e.target.value)}
-                  placeholder="e.g., John Doe" className={errors.ownerName ? 'border-red-500' : ''} />
-                {errors.ownerName && <p className="text-sm text-red-600 mt-1">{errors.ownerName}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="ownerEmail">Owner Email *</Label>
-                <div className="mt-1 relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input id="ownerEmail" type="email" value={formData.ownerEmail}
-                    onChange={e => handleChange('ownerEmail', e.target.value)}
-                    placeholder="owner@example.com" className={`pl-10 ${errors.ownerEmail ? 'border-red-500' : ''}`} />
-                </div>
-                {errors.ownerEmail && <p className="text-sm text-red-600 mt-1">{errors.ownerEmail}</p>}
-                <p className="text-xs text-gray-500 mt-1">Login credentials will be sent to this email</p>
-              </div>
-
-              <div>
-                <Label htmlFor="ownerPhone">Owner Phone *</Label>
-                <div className="mt-1 relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input id="ownerPhone" value={formData.ownerPhone} onChange={e => handleChange('ownerPhone', e.target.value)}
-                    placeholder="+251 912 345 678" className={`pl-10 ${errors.ownerPhone ? 'border-red-500' : ''}`} />
-                </div>
-                {errors.ownerPhone && <p className="text-sm text-red-600 mt-1">{errors.ownerPhone}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="ownerBusinessLicense">Owner's Business License *</Label>
-                <Input id="ownerBusinessLicense" value={formData.ownerBusinessLicense}
-                  onChange={e => handleChange('ownerBusinessLicense', e.target.value)}
-                  placeholder="e.g., BL-2024-XXXX" 
-                  className={errors.ownerBusinessLicense ? 'border-red-500' : ''} />
-                {errors.ownerBusinessLicense && <p className="text-sm text-red-600 mt-1">{errors.ownerBusinessLicense}</p>}
-                <p className="text-xs text-gray-500 mt-1">Will be stored in owner's profile</p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900 font-medium mb-1">Account Creation</p>
-                <p className="text-xs text-blue-700">
-                  A temporary password will be automatically generated and sent to the owner's email. The owner can change this password after first login.
-                </p>
-              </div>
+              <h3 className="text-lg font-semibold">Station Owner Details</h3>
+              <div><Label>Owner Full Name *</Label><Input value={formData.ownerName} onChange={e => handleChange('ownerName', e.target.value)} className={errors.ownerName ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.ownerName}</p></div>
+              <div><Label>Owner Email *</Label><Input type="email" value={formData.ownerEmail} onChange={e => handleChange('ownerEmail', e.target.value)} className={errors.ownerEmail ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.ownerEmail}</p><p className="text-xs text-gray-500">Login credentials will be sent to this email</p></div>
+              <div><Label>Owner Phone *</Label><Input value={formData.ownerPhone} onChange={e => handleChange('ownerPhone', e.target.value)} placeholder="+251 912 345 678" className={errors.ownerPhone ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.ownerPhone}</p></div>
+              <div><Label>Owner Business License *</Label><Input value={formData.ownerBusinessLicense} onChange={e => handleChange('ownerBusinessLicense', e.target.value)} className={errors.ownerBusinessLicense ? 'border-red-500' : ''} /><p className="text-red-500 text-xs">{errors.ownerBusinessLicense}</p></div>
+              <div className="bg-blue-50 p-4 rounded-lg"><p className="text-sm text-blue-900">A temporary password will be generated and sent to the owner's email.</p></div>
             </div>
-          ) : (
+          )}
+
+          {step === 3 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Initial Fuel Inventory</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Set the starting stock for each fuel type. Minimum stock threshold will be set to 500L, maximum capacity to 10,000L by default.
-              </p>
-              {loadingFuelTypes ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-              ) : (
-                <div className="space-y-4">
-                  {fuelTypes.map(ft => (
-                    <div key={ft.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Fuel className="w-5 h-5 text-blue-600" />
-                        <Label className="font-semibold">{ft.name} ({ft.code})</Label>
-                      </div>
-                      <div>
-                        <Label htmlFor={`stock-${ft.id}`}>Initial Stock (Liters)</Label>
-                        <Input
-                          id={`stock-${ft.id}`}
-                          type="number"
-                          min="0"
-                          step="100"
-                          value={formData.fuelStock[ft.id] || 0}
-                          onChange={e => handleFuelStockChange(ft.id, e.target.value)}
-                          placeholder="e.g., 5000"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Leave 0 if not available initially.</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <h3 className="text-lg font-semibold">Initial Fuel Inventory</h3>
+              <p className="text-sm text-gray-600">Set starting stock for each fuel type (min threshold 500L, max capacity 10,000L).</p>
+              {loadingFuelTypes ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : (
+                fuelTypes.map(ft => (
+                  <div key={ft.id} className="border p-4 rounded-lg">
+                    <Label className="font-semibold">{ft.name} ({ft.code})</Label>
+                    <Input type="number" min="0" step="100" value={formData.fuelStock[ft.id] || 0} onChange={e => handleFuelStockChange(ft.id, e.target.value)} placeholder="Liters" className="mt-1" />
+                  </div>
+                ))
               )}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                <AlertCircle className="w-4 h-4 inline mr-1" />
-                Stock can be adjusted later by the station owner via fuel deliveries.
-              </div>
+              <div className="bg-amber-50 p-3 rounded-lg text-sm text-amber-800"><AlertCircle className="w-4 h-4 inline mr-1" /> Stock can be adjusted later by the station owner.</div>
             </div>
           )}
         </form>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50">
+        <div className="border-t border-gray-200 px-6 py-4 flex justify-between bg-gray-50">
+          <div>{step > 1 && <Button type="button" variant="outline" onClick={handleBack} disabled={loading}>Back</Button>}</div>
           <div className="flex gap-3">
-            {step > 1 && (
-              <Button type="button" onClick={handleBack} variant="outline" disabled={loading}>
-                Back
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <Button type="button" onClick={onClose} variant="outline" disabled={loading}>
-              Cancel
-            </Button>
-
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
             {step < 3 ? (
-              <Button type="button" onClick={handleNext} className="bg-gradient-to-r from-purple-600 to-blue-600">
-                Next
-              </Button>
+              <Button type="button" onClick={handleNext} className="bg-gradient-to-r from-purple-600 to-blue-600">Next</Button>
             ) : (
               <Button onClick={handleSubmit} disabled={loading} className="bg-gradient-to-r from-purple-600 to-blue-600">
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Station & Owner'
-                )}
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Create Station & Owner
               </Button>
             )}
           </div>
