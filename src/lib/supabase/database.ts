@@ -97,13 +97,16 @@ export const userService = {
    */
   async getStationOperators(stationId: string): Promise<User[]> {
     try {
+      console.log('station id in getStationOperators service === '+ stationId)
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('role', 'operator')
-        .eq('station_id', stationId)
+        .eq('station_id', stationId as unknown as string)
         .order('hired_date', { ascending: false });
-
+      console.log('data in getStationOperators service ==== ',data)
+      const { data: data2 } = await supabase.from('users').select('*');
+      console.log('hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh== ',data2);
       if (error) throw error;
       return data || [];
     } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Shield, ShieldOff, Mail, Phone, Calendar, Activity, X, Loader2 } from 'lucide-react';
+import { UserPlus, Shield, ShieldOff, Mail, Phone, Calendar, Activity, X, Loader2, Copy } from 'lucide-react';
 import { userService } from '../../lib/supabase/database';
-import { notifications, notifyError, notifyWarning } from '../../lib/utils/notifications';
+import { notifyError, notifyWarning } from '../../lib/utils/notifications';
 import { validateEthiopianPhone, validateEmail, formatEthiopianPhone } from '../../lib/supabase/config';
 import type { User } from '../../types/advanced';
 import { Card } from '../ui/card';
@@ -11,6 +11,7 @@ import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { supabase } from '../../lib/supabase/client';
+import { toast } from 'sonner';
 
 interface OperatorManagementProps {
   stationId: string;
@@ -22,6 +23,10 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newOperatorPassword, setNewOperatorPassword] = useState('');
+  const [newOperatorEmail, setNewOperatorEmail] = useState('');
+  const [newOperatorName, setNewOperatorName] = useState('');
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -35,9 +40,12 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
   }, [stationId]);
 
   const loadOperators = async () => {
+    console.log('loadoperators() is called')
     setLoading(true);
     try {
+      console.log('station id sent ==== '+ stationId)
       const data = await userService.getStationOperators(stationId);
+      console.log('operators returned ==== ' , data)
       setOperators(data);
     } catch (error) {
       notifyError('Failed to load operators', error);
@@ -72,6 +80,18 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
     setErrors({});
   };
 
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
+    return password;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Password copied to clipboard');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -98,13 +118,14 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Failed to create operator');
 
-      notifications.operator.added(formData.fullName);
+      // Show password modal
+      setNewOperatorPassword(tempPassword);
+      setNewOperatorEmail(formData.email);
+      setNewOperatorName(formData.fullName);
+      setShowPasswordModal(true);
       setIsModalOpen(false);
       resetForm();
-      loadOperators();
-      
-      // Show temporary password (in development; in production send email)
-      console.log(`Operator created: ${formData.email} / ${tempPassword}`);
+      await loadOperators(); // refresh list
     } catch (error: any) {
       let friendlyMessage = 'Failed to create operator. ';
       if (error.message.includes('duplicate key') || error.message.includes('already registered')) {
@@ -118,19 +139,12 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
     }
   };
 
-  const generateRandomPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    let password = '';
-    for (let i = 0; i < 12; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
-    return password;
-  };
-
   const handleBlockOperator = async (operator: User) => {
     if (!confirm(`Block ${operator.full_name}? They won't be able to login.`)) return;
     try {
       const success = await userService.updateOperatorStatus(operator.id, 'blocked');
       if (success) {
-        notifications.operator.blocked();
+        toast.success(`${operator.full_name} has been blocked.`);
         loadOperators();
       }
     } catch (error) {
@@ -142,7 +156,7 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
     try {
       const success = await userService.updateOperatorStatus(operator.id, 'active');
       if (success) {
-        notifications.operator.unblocked();
+        toast.success(`${operator.full_name} has been unblocked.`);
         loadOperators();
       }
     } catch (error) {
@@ -244,7 +258,7 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
                     <Shield className="size-4 mr-2" /> Unblock
                   </Button>
                 )}
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                   <Activity className="size-4 mr-2" /> Activity
                 </Button>
               </div>
@@ -269,7 +283,7 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
         </div>
       </Card>
 
-      {/* Add Operator Modal (styled like AddDriverModal) */}
+      {/* Add Operator Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
@@ -346,6 +360,45 @@ export function OperatorManagement({ stationId, stationName }: OperatorManagemen
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Modal (after successful creation) */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <UserPlus className="w-6 h-6 text-white" />
+                <h2 className="text-xl font-bold text-white">Operator Created</h2>
+              </div>
+              <button onClick={() => setShowPasswordModal(false)} className="p-2 hover:bg-white/10 rounded-full">
+                <X className="w-6 h-6 text-white" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-800 font-medium mb-2">Operator Account Created Successfully</p>
+                <p className="text-sm text-gray-700"><strong>Name:</strong> {newOperatorName}</p>
+                <p className="text-sm text-gray-700"><strong>Email:</strong> {newOperatorEmail}</p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-yellow-800 mb-2">Temporary Password</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-lg font-mono bg-white px-3 py-2 rounded border flex-1">{newOperatorPassword}</code>
+                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(newOperatorPassword)}>
+                    <Copy className="w-4 h-4" /> Copy
+                  </Button>
+                </div>
+                <p className="text-xs text-yellow-700 mt-2">
+                  The operator can log in with this password and should change it after first login.
+                </p>
+              </div>
+              <Button onClick={() => setShowPasswordModal(false)} className="w-full bg-green-600 hover:bg-green-700">
+                Done
+              </Button>
+            </div>
           </div>
         </div>
       )}
