@@ -2,13 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { toast } from 'sonner';
-import { Truck, CheckCircle, XCircle, Clock, Eye, Filter, RefreshCw, AlertCircle } from 'lucide-react';
+import { Truck, CheckCircle, XCircle, Eye, Loader2, Ban, X } from 'lucide-react';
 
 interface DeliveryRequest {
   id: string;
@@ -38,8 +34,9 @@ export function DeliveryRequestsManagement() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'delivered'>('all');
   const [selectedRequest, setSelectedRequest] = useState<DeliveryRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [updateStatus, setUpdateStatus] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   useEffect(() => {
     loadRequests();
@@ -93,7 +90,6 @@ export function DeliveryRequestsManagement() {
         .eq('id', id);
       if (error) throw error;
 
-      // Create notification for station owner
       const request = requests.find(r => r.id === id);
       if (request) {
         await supabase.from('notifications').insert({
@@ -148,7 +144,7 @@ export function DeliveryRequestsManagement() {
       }
 
       toast.success('Delivery request rejected');
-      setSelectedRequest(null);
+      setRejectDialogOpen(false);
       setRejectReason('');
       loadRequests();
     } catch (error) {
@@ -233,13 +229,24 @@ export function DeliveryRequestsManagement() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Dialog>
+                  {/* Details Dialog - Consistent Style */}
+                  <Dialog open={detailsDialogOpen && selectedRequest?.id === req.id} onOpenChange={(open) => {
+                    if (open) setSelectedRequest(req);
+                    setDetailsDialogOpen(open);
+                  }}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm"><Eye className="size-4 mr-1" /> Details</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedRequest(req)}>
+                        <Eye className="size-4 mr-1" /> Details
+                      </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-lg">
-                      <DialogHeader><DialogTitle>Delivery Request Details</DialogTitle></DialogHeader>
-                      <div className="space-y-2 text-sm">
+                    <DialogContent className="max-w-md p-0 overflow-hidden">
+                      <DialogHeader className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-4 m-0">
+                        <DialogTitle className="text-xl font-bold">Delivery Request Details</DialogTitle>
+                        <DialogDescription className="text-blue-100 text-sm">
+                          Complete information about this delivery request.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="p-5 space-y-2 text-sm">
                         <p><strong>Station:</strong> {req.station_name}</p>
                         <p><strong>Fuel Type:</strong> {req.fuel_type_name}</p>
                         <p><strong>Quantity:</strong> {req.quantity} L</p>
@@ -262,16 +269,12 @@ export function DeliveryRequestsManagement() {
                       <Button size="sm" className="bg-green-600" onClick={() => handleApprove(req.id)} disabled={processing}>
                         <CheckCircle className="size-4 mr-1" /> Approve
                       </Button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="destructive"><XCircle className="size-4 mr-1" /> Reject</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader><DialogTitle>Rejection Reason</DialogTitle></DialogHeader>
-                          <Textarea placeholder="Provide reason for rejection" rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
-                          <Button onClick={() => handleReject(req.id)} disabled={processing}>Confirm Rejection</Button>
-                        </DialogContent>
-                      </Dialog>
+                      <Button size="sm" variant="destructive" onClick={() => {
+                        setSelectedRequest(req);
+                        setRejectDialogOpen(true);
+                      }}>
+                        <XCircle className="size-4 mr-1" /> Reject
+                      </Button>
                     </>
                   )}
                   {req.status === 'approved' && (
@@ -283,6 +286,34 @@ export function DeliveryRequestsManagement() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {rejectDialogOpen && selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Reject Delivery Request</h2>
+              <button onClick={() => setRejectDialogOpen(false)} className="text-white hover:bg-white/10 rounded-full p-1">
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">Please provide a reason for rejecting this delivery request.</p>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Rejection reason..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+              <Button onClick={() => handleReject(selectedRequest.id)} disabled={processing} className="w-full bg-red-600 hover:bg-red-700">
+                {processing ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Ban className="size-4 mr-2" />}
+                Confirm Rejection
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

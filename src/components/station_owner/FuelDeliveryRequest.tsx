@@ -10,8 +10,8 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
-import { Truck, Loader2, CheckCircle, XCircle, Clock, Plus, Eye, Calendar, Fuel } from 'lucide-react';
-import { format } from 'date-fns';
+import { Truck, Loader2, CheckCircle, XCircle, Clock, Plus, Eye, Calendar, Fuel, X, Ban } from 'lucide-react';
+
 
 interface FuelType {
   id: string;
@@ -81,6 +81,40 @@ export function FuelDeliveryRequest() {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelRequest = async (deliveryId: string) => {
+    if (!confirm('Are you sure you want to cancel this delivery request?')) return;
+    try {
+      const { error } = await supabase
+        .from('fuel_deliveries')
+        .update({ status: 'cancelled' })
+        .eq('id', deliveryId)
+        .eq('status', 'pending');
+      if (error) throw error;
+      toast.success('Delivery request cancelled');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to cancel');
+    }
+  };
+
+  const handleMarkAsDelivered = async (deliveryId: string) => {
+    if (!confirm('Confirm that this delivery has been received? Fuel stock will be updated.')) return;
+    try {
+      const { error } = await supabase
+        .from('fuel_deliveries')
+        .update({ status: 'delivered', delivered_at: new Date().toISOString() })
+        .eq('id', deliveryId)
+        .in('status', ['approved', 'in_transit']);
+      if (error) throw error;
+
+      // Create notification for station owner (already handled by trigger? We'll add manual)
+      toast.success('Delivery marked as received. Inventory updated.');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to update');
     }
   };
 
@@ -160,6 +194,7 @@ export function FuelDeliveryRequest() {
       case 'rejected': return <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">Rejected</span>;
       case 'in_transit': return <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">In Transit</span>;
       case 'delivered': return <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">Delivered</span>;
+      case 'cancelled': return <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">Cancelled</span>;
       default: return <span className="px-2 py-1 rounded-full text-xs bg-gray-100">{status}</span>;
     }
   };
@@ -208,13 +243,17 @@ export function FuelDeliveryRequest() {
                       <span className="font-medium">Rejection reason:</span> {delivery.rejection_reason}
                     </div>
                   )}
-                  {delivery.status === 'approved' && (
-                    <div className="mt-3">
-                      <Button size="sm" onClick={() => handleMarkAsReceived(delivery.id)}>
+                    {(delivery.status === 'approved' || delivery.status === 'in_transit') && (
+                        <Button size="sm" onClick={() => handleMarkAsDelivered(delivery.id)}>
                         <CheckCircle className="size-4 mr-1" /> Mark as Received
-                      </Button>
-                    </div>
-                  )}
+                        </Button>
+                    )}
+
+                 {delivery.status === 'pending' && (
+                    <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleCancelRequest(delivery.id)}>
+                    <Ban className="size-4 mr-1" /> Cancel
+                    </Button>
+                    )}
                   {delivery.status === 'delivered' && (
                     <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
                       <CheckCircle className="size-4" /> Delivered on {new Date(delivery.delivered_at!).toLocaleDateString()}

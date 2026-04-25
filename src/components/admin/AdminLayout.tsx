@@ -9,11 +9,12 @@ import { SystemActivity } from './SystemActivity';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminProfile } from './AdminProfile';
 import { FuelPriceManagement } from './FuelPriceManagement';
-import { AddDriverPage } from './AddDriverPage';        // ← new import
+import { AddDriverPage } from './AddDriverPage';        
 import { CarClassManagement } from './CarClassManagement';
 import { SystemAnalytics } from './SystemAnalytics';
+import { DeliveryRequestsManagement } from './DeliveryRequestsManagement';
 import {
-  LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus
+  LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus, Truck
 } from 'lucide-react';
 
 export function AdminLayout() {
@@ -34,11 +35,12 @@ export function AdminLayout() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'fuelprices', label: 'Fuel Prices', icon: DollarSign },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'stations', label: 'Station Management', icon: Building2 },
     { id: 'reservations', label: 'Reservations', icon: Calendar },
-    { id: 'carClass', label: 'Manage Car Class', icon: Car },              // changed icon
-    { id: 'addDriver', label: 'Add Driver', icon: UserPlus },              // changed icon
+    { id: 'carClass', label: 'Manage Car Class', icon: Car },              
+    { id: 'addDriver', label: 'Add Driver', icon: UserPlus },            
     { id: 'activity', label: 'System Activity', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
@@ -50,8 +52,9 @@ export function AdminLayout() {
       case 'users': return <UserManagement />;
       case 'stations': return <StationManagement />;
       case 'reservations': return <ReservationMonitoring />;
+      case 'deliveries': return <DeliveryRequestsManagement />;
       case 'activity': return <SystemActivity />;
-      case 'addDriver': return <AddDriverPage />;                 // ← changed
+      case 'addDriver': return <AddDriverPage />;                 
       case 'carClass': return <CarClassManagement />;
       case 'notifications': return <AdminNotifications />;
       case 'profile': return <AdminProfile onLogout={handleLogout} />;
@@ -61,8 +64,6 @@ export function AdminLayout() {
     }
   };
 
-  // The rest of your JSX (sidebar, mobile overlay, main content) remains exactly the same.
-  // I'll repeat it here only for completeness – you can keep your original code.
 
   return (
     <div className="flex h-screen bg-gray-50">
