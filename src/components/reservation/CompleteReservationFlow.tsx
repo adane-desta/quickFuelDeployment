@@ -7,6 +7,7 @@ import { notifications, notifyError } from '../../lib/utils/notifications';
 import type { Station, TimeSlot } from '../../types/advanced';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
+import { supabase } from '../../lib/supabase/client';
 // import { StationSelection } from './reservation/StationSelection';
 import { StationSelection } from './StationSelection';
 import { TimeSlotSelector } from './TimeSlotSelector';
