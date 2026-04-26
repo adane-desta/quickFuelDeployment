@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState , useEffect , useRef} from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft, Check, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,6 +34,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
   const [creating, setCreating] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(initialStation);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [preferredFuelId, setPreferredFuelId] = useState<string | null>(null);
   const [fuelData, setFuelData] = useState<{
     fuelTypeId: string;
     quantity: number;
@@ -41,6 +42,29 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
     totalPrice: number;
   } | null>(null);
   const [reservationId, setReservationId] = useState<string | null>(null);
+  
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fetchDriverPref = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('users')
+          .select('preferred_fuel_type_id')
+          .eq('id', user.id)
+          .single();
+        setPreferredFuelId(data?.preferred_fuel_type_id);
+      }
+    };
+  
+    // Run the fetch when user changes
+    fetchDriverPref();
+  
+    // Scroll to top when currentStep changes
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [user, currentStep]);
+  
 
   const handleStationSelect = (station: Station) => {
     setSelectedStation(station);
@@ -173,7 +197,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6">
           {currentStep === 1 && !initialStation && (
           <StationSelection onSelectStation={handleStationSelect} />
         )}
@@ -194,6 +218,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
                 onSelectFuel={handleFuelSelect}
                 selectedFuelTypeId={fuelData?.fuelTypeId}
                 selectedQuantity={fuelData?.quantity}
+                preferredFuelTypeId={preferredFuelId}
               />
               <div className="mt-6">
                 <Button

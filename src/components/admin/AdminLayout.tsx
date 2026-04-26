@@ -1,4 +1,4 @@
-import { useState , useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminDashboard } from './AdminDashboard';
@@ -9,9 +9,12 @@ import { SystemActivity } from './SystemActivity';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminProfile } from './AdminProfile';
 import { FuelPriceManagement } from './FuelPriceManagement';
+import { AddDriverPage } from './AddDriverPage';        
+import { CarClassManagement } from './CarClassManagement';
 import { SystemAnalytics } from './SystemAnalytics';
+import { DeliveryRequestsManagement } from './DeliveryRequestsManagement';
 import {
-  Fuel, LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3
+  LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus, Truck
 } from 'lucide-react';
 
 export function AdminLayout() {
@@ -21,12 +24,10 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-  if (!user) {
-    navigate('/login');
-  }
-}, [user, navigate]);
+    if (!user) navigate('/login');
+  }, [user, navigate]);
 
-  if (!user)  return null; 
+  if (!user) return null;
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -34,9 +35,12 @@ export function AdminLayout() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'fuelprices', label: 'Fuel Prices', icon: DollarSign },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'stations', label: 'Station Management', icon: Building2 },
     { id: 'reservations', label: 'Reservations', icon: Calendar },
+    { id: 'carClass', label: 'Manage Car Class', icon: Car },              
+    { id: 'addDriver', label: 'Add Driver', icon: UserPlus },            
     { id: 'activity', label: 'System Activity', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
@@ -48,7 +52,10 @@ export function AdminLayout() {
       case 'users': return <UserManagement />;
       case 'stations': return <StationManagement />;
       case 'reservations': return <ReservationMonitoring />;
+      case 'deliveries': return <DeliveryRequestsManagement />;
       case 'activity': return <SystemActivity />;
+      case 'addDriver': return <AddDriverPage />;                 
+      case 'carClass': return <CarClassManagement />;
       case 'notifications': return <AdminNotifications />;
       case 'profile': return <AdminProfile onLogout={handleLogout} />;
       case 'fuelprices': return <FuelPriceManagement />;
@@ -56,6 +63,7 @@ export function AdminLayout() {
       default: return <AdminDashboard onNavigate={setActiveTab} />;
     }
   };
+
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -108,7 +116,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay – keep exactly as you had */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />

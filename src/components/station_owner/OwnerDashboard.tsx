@@ -1,118 +1,137 @@
-// =====================================================
-// STATION OWNER DASHBOARD - COMPLETE & COMPREHENSIVE
-// =====================================================
-// Full-featured dashboard with all owner functionalities
-// Mobile-first design with detailed analytics and controls
-// =====================================================
-
-import React, { useState, useEffect } from 'react';
-import {
-  Fuel,
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  Clock,
-  CheckCircle,
-  Package,
-  DollarSign,
-  Activity,
-  Calendar,
-  BarChart3,
-  Truck,
-  Settings,
-  AlertCircle,
-  Building2,
-  Eye,
-  RefreshCw,
-  TrendingDown,
-  ArrowUpRight,
-  ArrowDownRight,
-  MapPin,
-  Phone,
-  Clock3,
-  Shield,
-  Star,
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { stationService, inventoryService, userService } from '../../lib/supabase/database';
 import { analyticsService, deliveryService, reservationService } from '../../lib/supabase/database-advanced';
+import { supabase } from '../../lib/supabase/client';
+import { Star, MessageSquare, FileText } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../lib/utils/notifications';
-import type { Station, StationFuelInventory, FuelDelivery, User as UserType, Reservation } from '../../types/advanced';
+import type { Station, StationFuelInventory, User as UserType, Reservation, FuelDelivery } from '../../types/advanced';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Progress } from '../ui/progress';
 import { Separator } from '../ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import {
+  Building2, MapPin, Phone, Clock, Calendar, Fuel, Users, DollarSign, TrendingUp,
+  TrendingDown, AlertTriangle, CheckCircle, XCircle, RefreshCw, Edit2, Save, X,
+  Eye, Settings, User, Mail, Lock, Shield, Bell, Globe, LogOut, Trash2, Download,
+  ChevronRight, Plus, Truck, BarChart3, Activity, Droplet, Gauge, AlertCircle
+} from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
+type DateRange = 'today' | 'week' | 'month';
 
 interface DashboardStats {
-  today_revenue: number;
-  today_reservations: number;
-  today_completed: number;
-  active_reservations: number;
-  total_revenue: number;
   total_reservations: number;
+  completed_reservations: number;
+  cancelled_reservations: number;
+  total_revenue: number;
+  total_fuel_dispensed: number;
   average_rating: number;
   total_reviews: number;
 }
 
-interface OwnerDashboardProps {
-  onNavigate?: (tab: string) => void;
-}
-
-export function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
-  const { user } = useAuth();
+export function OwnerDashboard() {
+  const { user, updateUser } = useAuth();
   const [station, setStation] = useState<Station | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [inventory, setInventory] = useState<StationFuelInventory[]>([]);
   const [operators, setOperators] = useState<UserType[]>([]);
-  const [recentReservations, setRecentReservations] = useState<Reservation[]>([]);
   const [pendingDeliveries, setPendingDeliveries] = useState<FuelDelivery[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>('today');
+  const [editingStation, setEditingStation] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [stationForm, setStationForm] = useState<Partial<Station>>({});
+  const [profileForm, setProfileForm] = useState({
+    full_name: user?.full_name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: user?.address || '',
+    business_license_number: user?.business_license_number || '',
+    tax_identification_number: user?.tax_identification_number || '',
+    business_address: user?.business_address || '',
+  });
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
 
   useEffect(() => {
-    if (user) {
-      loadDashboardData();
-    }
-  }, [user]);
+    if (user) loadDashboardData();
+  }, [user, dateRange]);
 
   const loadDashboardData = async () => {
     if (!user) return;
-
     setLoading(true);
     try {
-      // Get owner's station
+      // Get owner's stations
       const stationsData = await stationService.getOwnerStations(user.id);
-      
       if (stationsData.length === 0) {
         setLoading(false);
         return;
       }
-
       const ownerStation = stationsData[0];
       setStation(ownerStation);
+      setStationForm(ownerStation);
 
-      // Load all dashboard data in parallel
-      const [
-        inventoryData,
-        operatorsData,
-        reservationsData,
-        deliveriesData,
-        dashboardData,
-      ] = await Promise.all([
-        inventoryService.getStationInventory(ownerStation.id),
-        userService.getStationOperators(ownerStation.id),
-        reservationService.getStationReservations(ownerStation.id, {}),
-        deliveryService.getStationDeliveries(ownerStation.id),
-        analyticsService.getStationDashboard(ownerStation.id),
-      ]);
-
+      // Load inventory
+      const inventoryData = await inventoryService.getStationInventory(ownerStation.id);
       setInventory(inventoryData);
+
+      // Load operators
+      const operatorsData = await userService.getStationOperators(ownerStation.id);
       setOperators(operatorsData);
-      setRecentReservations(reservationsData);
-      setPendingDeliveries(deliveriesData.filter((d) => d.status === 'pending'));
-      setStats(dashboardData as DashboardStats);
+
+      // Load pending deliveries
+      const deliveriesData = await deliveryService.getStationDeliveries(ownerStation.id);
+      setPendingDeliveries(deliveriesData.filter(d => d.status === 'pending'));
+
+      // Load analytics based on date range
+      const today = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+      if (dateRange === 'today') {
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (dateRange === 'week') {
+        startDate.setDate(today.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        startDate.setMonth(today.getMonth() - 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const { data: reservations, error: resError } = await supabase
+        .from('reservations')
+        .select('*')
+        .eq('station_id', ownerStation.id)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+
+      if (resError) throw resError;
+
+      const totalReservations = reservations.length;
+      const completedReservations = reservations.filter(r => r.status === 'completed').length;
+      const cancelledReservations = reservations.filter(r => r.status === 'cancelled' || r.status === 'expired').length;
+      const totalRevenue = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.total_price || 0), 0);
+      const totalFuelDispensed = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+      setStats({
+        total_reservations: totalReservations,
+        completed_reservations: completedReservations,
+        cancelled_reservations: cancelledReservations,
+        total_revenue: totalRevenue,
+        total_fuel_dispensed: totalFuelDispensed,
+        average_rating: ownerStation.average_rating || 0,
+        total_reviews: ownerStation.total_reviews || 0,
+      });
     } catch (error) {
       notifyError('Failed to load dashboard data', error);
     } finally {
@@ -120,36 +139,69 @@ export function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
-    notifySuccess('Dashboard refreshed');
-  };
-
-  const getStockPercentage = (current: number, max: number) => {
-    return Math.min((current / max) * 100, 100);
-  };
-
-  const getStockColor = (percentage: number) => {
-    if (percentage < 25) return 'bg-red-600';
-    if (percentage < 50) return 'bg-yellow-600';
-    return 'bg-green-600';
-  };
-
-  const getReservationStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-600';
-      case 'confirmed':
-        return 'bg-blue-600';
-      case 'pending':
-        return 'bg-yellow-600';
-      case 'cancelled':
-        return 'bg-red-600';
-      default:
-        return 'bg-gray-600';
+  const handleSaveStation = async () => {
+    if (!station) return;
+    try {
+      const { error } = await supabase
+        .from('stations')
+        .update(stationForm)
+        .eq('id', station.id);
+      if (error) throw error;
+      setStation({ ...station, ...stationForm });
+      notifySuccess('Station information updated');
+      setEditingStation(false);
+    } catch (error) {
+      notifyError('Failed to update station', error);
     }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          full_name: profileForm.full_name,
+          phone: profileForm.phone,
+          address: profileForm.address,
+          business_license_number: profileForm.business_license_number,
+          tax_identification_number: profileForm.tax_identification_number,
+          business_address: profileForm.business_address,
+        })
+        .eq('id', user?.id);
+      if (error) throw error;
+      await updateUser(profileForm);
+      notifySuccess('Profile updated');
+      setEditingProfile(false);
+    } catch (error) {
+      notifyError('Failed to update profile', error);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.new.length < 6) {
+      notifyError('Password must be at least 6 characters');
+      return;
+    }
+    if (passwordData.new !== passwordData.confirm) {
+      notifyError('Passwords do not match');
+      return;
+    }
+    // Password update requires Supabase auth update
+    const { error } = await supabase.auth.updateUser({ password: passwordData.new });
+    if (error) {
+      notifyError('Failed to update password', error);
+    } else {
+      notifySuccess('Password updated successfully');
+      setShowChangePassword(false);
+      setPasswordData({ current: '', new: '', confirm: '' });
+    }
+  };
+
+  const getStockPercentage = (current: number, max: number) => Math.min((current / max) * 100, 100);
+  const getStockStatus = (current: number, min: number) => {
+    if (current <= min) return { label: 'Low', color: 'text-red-600', bg: 'bg-red-100' };
+    if (current <= min * 2) return { label: 'Moderate', color: 'text-yellow-600', bg: 'bg-yellow-100' };
+    return { label: 'Good', color: 'text-green-600', bg: 'bg-green-100' };
   };
 
   if (loading) {
@@ -158,9 +210,7 @@ export function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
         <div className="max-w-7xl mx-auto space-y-4">
           <Skeleton className="h-32" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-32" />
-            ))}
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
           </div>
           <Skeleton className="h-64" />
         </div>
@@ -175,426 +225,399 @@ export function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
           <Card className="p-12 text-center">
             <Building2 className="size-20 mx-auto mb-4 text-gray-400" />
             <h3 className="text-2xl font-bold mb-2">No Station Assigned</h3>
-            <p className="text-gray-600 mb-4">
-              You don't have any stations assigned to your account yet.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Please contact the system administrator to assign a station to your account.
-            </p>
+            <p className="text-gray-600 mb-4">You don't have any stations assigned to your account yet.</p>
+            <p className="text-sm text-gray-500">Please contact the system administrator.</p>
           </Card>
         </div>
       </div>
     );
   }
 
-  const lowStockCount = inventory.filter((inv) => inv.stock_status === 'low').length;
-  const activeOperators = operators.filter((op) => op.operator_status === 'active').length;
-  const todayRevenue = stats?.today_revenue || 0;
-  const todayReservations = stats?.today_reservations || 0;
-  const todayCompleted = stats?.today_completed || 0;
-  const activeReservations = stats?.active_reservations || 0;
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white">
-        <div className="max-w-7xl mx-auto p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">{station.name}</h1>
-              <p className="text-orange-100 text-sm md:text-base">Station Owner Dashboard</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-
-          {/* Station Quick Info */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="flex items-center gap-2">
-              <MapPin className="size-4 text-orange-200" />
-              <span className="text-orange-100 truncate">{station.address.split(',')[0]}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Phone className="size-4 text-orange-200" />
-              <span className="text-orange-100">{station.phone}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock3 className="size-4 text-orange-200" />
-              <span className="text-orange-100">
-                {station.is_24_hours ? '24/7' : `${station.opening_time}-${station.closing_time}`}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Shield className="size-4 text-orange-200" />
-              <Badge className="bg-white text-orange-600">
-                {station.is_active ? 'Active' : 'Inactive'}
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-        {/* Critical Alerts */}
-        {(lowStockCount > 0 || pendingDeliveries.length > 0) && (
-          <div className="space-y-3">
-            {lowStockCount > 0 && (
-              <Card className="p-4 bg-red-50 border-red-200">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="size-6 text-red-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-red-900">Critical: Low Fuel Stock!</p>
-                    <p className="text-sm text-red-800">
-                      {lowStockCount} fuel type{lowStockCount !== 1 ? 's are' : ' is'} running critically low.
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => onNavigate?.('deliveries')}
-                    className="flex-shrink-0"
-                  >
-                    Request Delivery
-                  </Button>
-                </div>
-              </Card>
-            )}
-            {pendingDeliveries.length > 0 && (
-              <Card className="p-4 bg-yellow-50 border-yellow-200">
-                <div className="flex items-center gap-3">
-                  <Truck className="size-6 text-yellow-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-yellow-900">Pending Deliveries</p>
-                    <p className="text-sm text-yellow-800">
-                      {pendingDeliveries.length} delivery request{pendingDeliveries.length !== 1 ? 's' : ''} awaiting admin approval.
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onNavigate?.('deliveries')}
-                    className="flex-shrink-0"
-                  >
-                    View Status
-                  </Button>
-                </div>
-              </Card>
-            )}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Station Owner Dashboard</h1>
+            <p className="text-gray-600">Manage your station and track performance</p>
           </div>
-        )}
+          <Button onClick={loadDashboardData} variant="outline" size="sm">
+            <RefreshCw className="size-4 mr-2" /> Refresh
+          </Button>
+        </div>
 
-        {/* Key Performance Metrics */}
+        {/* Date Range Selector for Analytics */}
+        <div className="flex justify-end">
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Today's Revenue */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <DollarSign className="size-10 text-green-600" />
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Calendar className="size-8 text-blue-600" />
               <TrendingUp className="size-5 text-green-600" />
             </div>
-            <p className="text-3xl font-bold text-green-600 mb-1">
-              {todayRevenue.toLocaleString()}
-            </p>
-            <p className="text-sm text-gray-600">Today's Revenue</p>
-            <p className="text-xs text-gray-500 mt-1">ETB</p>
+            <p className="text-2xl font-bold">{stats?.total_reservations || 0}</p>
+            <p className="text-sm text-gray-600">Total Reservations</p>
           </Card>
-
-          {/* Today's Reservations */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <Calendar className="size-10 text-blue-600" />
-              <Badge className="bg-blue-600">{todayCompleted}/{todayReservations}</Badge>
-            </div>
-            <p className="text-3xl font-bold mb-1">{todayReservations}</p>
-            <p className="text-sm text-gray-600">Today's Bookings</p>
-            <p className="text-xs text-green-600 mt-1">{todayCompleted} completed</p>
-          </Card>
-
-          {/* Active Reservations */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <Activity className="size-10 text-orange-600" />
-              {activeReservations > 0 && (
-                <Badge className="bg-orange-600 animate-pulse">{activeReservations}</Badge>
-              )}
-            </div>
-            <p className="text-3xl font-bold mb-1">{activeReservations}</p>
-            <p className="text-sm text-gray-600">Active Now</p>
-            <p className="text-xs text-gray-500 mt-1">In progress</p>
-          </Card>
-
-          {/* Operators */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <Users className="size-10 text-purple-600" />
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <DollarSign className="size-8 text-green-600" />
               <TrendingUp className="size-5 text-green-600" />
             </div>
-            <p className="text-3xl font-bold mb-1">{activeOperators}</p>
-            <p className="text-sm text-gray-600">Active Operators</p>
-            <p className="text-xs text-gray-500 mt-1">of {operators.length} total</p>
+            <p className="text-2xl font-bold">ETB {(stats?.total_revenue || 0).toLocaleString()}</p>
+            <p className="text-sm text-gray-600">Revenue</p>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Droplet className="size-8 text-blue-600" />
+              <TrendingUp className="size-5 text-green-600" />
+            </div>
+            <p className="text-2xl font-bold">{stats?.total_fuel_dispensed || 0} L</p>
+            <p className="text-sm text-gray-600">Fuel Dispensed</p>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Users className="size-8 text-purple-600" />
+              <span className="text-sm font-medium">{operators.filter(o => o.operator_status === 'active').length} Active</span>
+            </div>
+            <p className="text-2xl font-bold">{operators.length}</p>
+            <p className="text-sm text-gray-600">Total Operators</p>
           </Card>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Fuel Inventory Status */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Fuel className="size-5 text-primary" />
-                <h3 className="font-semibold text-lg">Fuel Inventory</h3>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate?.('deliveries')}
-              >
-                Request Fuel
+        {/* Main Tabs */}
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="station">Station Info</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Button variant="outline" className="h-20 flex flex-col gap-1" onClick={() => window.location.href = '/station-owner/operators'}>
+                <Users className="size-6 text-blue-600" />
+                <span className="text-xs">Manage Operators</span>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-1" onClick={() => window.location.href = '/station-owner/deliveries'}>
+                <Truck className="size-6 text-purple-600" />
+                <span className="text-xs">Request Fuel</span>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-1" onClick={() => window.location.href = '/station-owner/reservations'}>
+                <Calendar className="size-6 text-green-600" />
+                <span className="text-xs">View Reservations</span>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-1" onClick={() => window.location.href = '/station-owner/analytics'}>
+                <BarChart3 className="size-6 text-orange-600" />
+                <span className="text-xs">Analytics</span>
               </Button>
             </div>
 
-            {inventory.length === 0 ? (
-              <div className="text-center py-8">
-                <Fuel className="size-12 mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-600">No fuel types configured</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {inventory.map((item) => {
-                  const percentage = getStockPercentage(item.current_stock, item.maximum_capacity);
-                  const colorClass = getStockColor(percentage);
-
-                  return (
-                    <div key={item.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{item.fuel_type_name}</p>
-                          <p className="text-xs text-gray-500">{item.fuel_type_code}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">ETB {item.effective_price?.toFixed(2)}</p>
-                          <p className="text-xs text-gray-500">{item.current_stock.toLocaleString()}L</p>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Progress value={percentage} className="h-2" />
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>{percentage.toFixed(0)}% full</span>
-                          <span>Max: {item.maximum_capacity.toLocaleString()}L</span>
-                        </div>
-                      </div>
-                      {item.stock_status === 'low' && (
-                        <div className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
-                          <AlertTriangle className="size-4 text-red-600" />
-                          <span className="text-xs text-red-700 font-medium">
-                            Below minimum threshold ({item.minimum_stock_threshold}L)
-                          </span>
-                        </div>
-                      )}
-                      <Separator />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          {/* Recent Reservations */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="size-5 text-primary" />
-                <h3 className="font-semibold text-lg">Recent Reservations</h3>
-              </div>
-              <Button variant="ghost" size="sm">
-                <Eye className="size-4" />
-              </Button>
-            </div>
-
-   {recentReservations.slice(0, 8).map((reservation) => (
-        <div
-    key={reservation.id}
-    className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-  >
-    <div className="flex items-start justify-between mb-2">
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{reservation.driver_name}</p>
-        <p className="text-sm text-gray-600">{reservation.fuel_type_name}</p>
-      </div>
-      <Badge className={getReservationStatusColor(reservation.status)}>
-        {reservation.status}
-      </Badge>
-    </div>
-    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-      <div className="flex items-center gap-1">
-        <Fuel className="size-3" />
-        <span>{reservation.quantity}L</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <Clock className="size-3" />
-        <span>
-          {reservation.time_slot?.start_time} - {reservation.time_slot?.end_time}
-        </span>
-      </div>
-    </div>
-  </div>
-))}
-          </Card>
-        </div>
-
-        {/* Operators & Quick Actions */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Operators Status */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="size-5 text-primary" />
-                <h3 className="font-semibold text-lg">Station Operators</h3>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate?.('operators')}
-              >
-                Manage
-              </Button>
-            </div>
-
-            {operators.length === 0 ? (
-              <div className="text-center py-8">
-                <Users className="size-12 mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-600 mb-3">No operators assigned</p>
-                <Button size="sm" onClick={() => onNavigate?.('operators')}>
-                  Add Operator
-                </Button>
-              </div>
-            ) : (
+            {/* Alerts */}
+            {(pendingDeliveries.length > 0 || inventory.some(i => i.stock_status === 'low')) && (
               <div className="space-y-3">
-                {operators.slice(0, 5).map((operator) => (
-                  <div
-                    key={operator.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
+                {pendingDeliveries.length > 0 && (
+                  <Card className="p-4 bg-yellow-50 border-yellow-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center">
-                        <Users className="size-5 text-white" />
+                      <AlertTriangle className="size-6 text-yellow-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-yellow-900">Pending Deliveries</p>
+                        <p className="text-sm text-yellow-800">{pendingDeliveries.length} delivery request(s) awaiting admin approval.</p>
                       </div>
-                      <div>
-                        <p className="font-medium">{operator.full_name}</p>
-                        <p className="text-xs text-gray-500">{operator.email}</p>
-                      </div>
+                      <Button variant="outline" size="sm" onClick={() => window.location.href = '/station-owner/deliveries'}>View</Button>
                     </div>
-                    <Badge
-                      className={
-                        operator.operator_status === 'active'
-                          ? 'bg-green-600'
-                          : operator.operator_status === 'blocked'
-                          ? 'bg-red-600'
-                          : 'bg-gray-500'
-                      }
-                    >
-                      {operator.operator_status}
-                    </Badge>
-                  </div>
-                ))}
-                {operators.length > 5 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => onNavigate?.('operators')}
-                  >
-                    View all {operators.length} operators
-                  </Button>
+                  </Card>
+                )}
+                {inventory.some(i => i.stock_status === 'low') && (
+                  <Card className="p-4 bg-red-50 border-red-200">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="size-6 text-red-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-red-900">Low Fuel Stock</p>
+                        <p className="text-sm text-red-800">Some fuel types are running low. Please request a delivery.</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => window.location.href = '/station-owner/deliveries'}>Request</Button>
+                    </div>
+                  </Card>
                 )}
               </div>
             )}
-          </Card>
 
-          {/* Quick Actions */}
-          <Card className="p-5">
-            <h3 className="font-semibold text-lg mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col items-center justify-center gap-2"
-                onClick={() => onNavigate?.('operators')}
-              >
-                <Users className="size-8 text-blue-600" />
-                <span className="text-sm">Manage Operators</span>
-              </Button>
+            {/* Performance Metrics */}
+            <Card className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="size-5 text-primary" />
+                <h3 className="font-semibold text-lg">Performance Overview ({dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'This Week' : 'This Month'})</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <CheckCircle className="size-8 mx-auto mb-2 text-green-600" />
+                  <p className="text-2xl font-bold">{stats?.completed_reservations || 0}</p>
+                  <p className="text-sm text-gray-600">Completed</p>
+                </div>
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <XCircle className="size-8 mx-auto mb-2 text-red-600" />
+                  <p className="text-2xl font-bold">{stats?.cancelled_reservations || 0}</p>
+                  <p className="text-sm text-gray-600">Cancelled/Expired</p>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <Star className="size-8 mx-auto mb-2 text-yellow-600" />
+                  <p className="text-2xl font-bold">{stats?.average_rating.toFixed(1)}</p>
+                  <p className="text-sm text-gray-600">Avg Rating</p>
+                </div>
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <MessageSquare className="size-8 mx-auto mb-2 text-blue-600" />
+                  <p className="text-2xl font-bold">{stats?.total_reviews}</p>
+                  <p className="text-sm text-gray-600">Reviews</p>
+                </div>
+              </div>
+            </Card>
 
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col items-center justify-center gap-2"
-                onClick={() => onNavigate?.('deliveries')}
-              >
-                <Truck className="size-8 text-purple-600" />
-                <span className="text-sm">Request Fuel</span>
-              </Button>
+            {/* Fuel Inventory Summary */}
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Fuel className="size-5 text-primary" />
+                  <h3 className="font-semibold text-lg">Fuel Inventory Summary</h3>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => document.querySelector('[data-value="inventory"]')?.click()}>View All</Button>
+              </div>
+              {inventory.length === 0 ? (
+                <div className="text-center py-8">
+                  <Fuel className="size-12 mx-auto mb-3 text-gray-400" />
+                  <p className="text-gray-600">No fuel inventory configured</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {inventory.slice(0, 3).map(item => {
+                    const percentage = getStockPercentage(item.current_stock, item.maximum_capacity);
+                    const status = getStockStatus(item.current_stock, item.minimum_stock_threshold);
+                    return (
+                      <div key={item.id} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{item.fuel_type_name}</p>
+                            <p className="text-xs text-gray-500">{item.current_stock.toLocaleString()} / {item.maximum_capacity.toLocaleString()} L</p>
+                          </div>
+                          <Badge className={status.bg + ' ' + status.color}>{status.label}</Badge>
+                        </div>
+                        <Progress value={percentage} className="h-2" />
+                      </div>
+                    );
+                  })}
+                  {inventory.length > 3 && (
+                    <p className="text-sm text-gray-500 text-center">+{inventory.length - 3} more fuel types</p>
+                  )}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
 
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col items-center justify-center gap-2"
-                onClick={() => onNavigate?.('settings')}
-              >
-                <Settings className="size-8 text-gray-600" />
-                <span className="text-sm">Station Settings</span>
-              </Button>
+          {/* Inventory Tab */}
+          <TabsContent value="inventory" className="space-y-4">
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Full Fuel Inventory</h3>
+                <Button variant="outline" size="sm" onClick={() => window.location.href = '/station-owner/deliveries'}>Request Delivery</Button>
+              </div>
+              {inventory.length === 0 ? (
+                <div className="text-center py-12">
+                  <Fuel className="size-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600">No fuel inventory configured for this station.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {inventory.map(item => {
+                    const percentage = getStockPercentage(item.current_stock, item.maximum_capacity);
+                    const status = getStockStatus(item.current_stock, item.minimum_stock_threshold);
+                    return (
+                      <Card key={item.id} className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-bold text-lg">{item.fuel_type_name}</h4>
+                            <p className="text-xs text-gray-500">{item.fuel_type_code}</p>
+                          </div>
+                          <Badge className={status.bg + ' ' + status.color}>{status.label}</Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Current Stock</span>
+                            <span className="font-medium">{item.current_stock.toLocaleString()} L</span>
+                          </div>
+                          <Progress value={percentage} className="h-2" />
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div><span className="text-gray-500">Min Threshold:</span> {item.minimum_stock_threshold.toLocaleString()} L</div>
+                            <div><span className="text-gray-500">Max Capacity:</span> {item.maximum_capacity.toLocaleString()} L</div>
+                            <div><span className="text-gray-500">Price/L:</span> ETB {item.effective_price?.toFixed(2)}</div>
+                            <div><span className="text-gray-500">Status:</span> {item.is_available ? 'Available' : 'Unavailable'}</div>
+                          </div>
+                          {item.stock_status === 'low' && (
+                            <div className="mt-2 p-2 bg-red-50 rounded-lg text-red-700 text-sm flex items-center gap-2">
+                              <AlertTriangle className="size-4" /> Below minimum threshold
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
 
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col items-center justify-center gap-2"
-              >
-                <BarChart3 className="size-8 text-orange-600" />
-                <span className="text-sm">View Analytics</span>
+          {/* Station Info Tab */}
+          <TabsContent value="station" className="space-y-4">
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Station Information</h3>
+                {!editingStation ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditingStation(true)}>
+                    <Edit2 className="size-4 mr-1" /> Edit
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingStation(false)}><X className="size-4" /> Cancel</Button>
+                    <Button variant="default" size="sm" onClick={handleSaveStation}><Save className="size-4 mr-1" /> Save</Button>
+                  </div>
+                )}
+              </div>
+              {!editingStation ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3"><Building2 className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Name</p><p className="font-medium">{station.name}</p></div></div>
+                  <div className="flex items-start gap-3"><MapPin className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Address</p><p className="font-medium">{station.address}</p></div></div>
+                  <div className="flex items-start gap-3"><Phone className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Phone</p><p className="font-medium">{station.phone}</p></div></div>
+                  <div className="flex items-start gap-3"><Clock className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Operating Hours</p><p className="font-medium">{station.is_24_hours ? '24/7' : `${station.opening_time} - ${station.closing_time}`}</p></div></div>
+                  <div className="flex items-start gap-3"><Calendar className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Operating Days</p><p className="font-medium">{station.operating_days?.join(', ')}</p></div></div>
+                  <div className="flex items-start gap-3"><Fuel className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Number of Pumps</p><p className="font-medium">{station.number_of_pumps}</p></div></div>
+                  <div className="flex items-start gap-3"><FileText className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Business License</p><p className="font-medium">{station.business_license_number}</p></div></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div><Label>Station Name</Label><Input value={stationForm.name || ''} onChange={e => setStationForm({...stationForm, name: e.target.value})} /></div>
+                  <div><Label>Address</Label><Input value={stationForm.address || ''} onChange={e => setStationForm({...stationForm, address: e.target.value})} /></div>
+                  <div><Label>Phone</Label><Input value={stationForm.phone || ''} onChange={e => setStationForm({...stationForm, phone: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><Label>Opening Time</Label><Input type="time" value={stationForm.opening_time?.slice(0,5) || '06:00'} onChange={e => setStationForm({...stationForm, opening_time: e.target.value})} /></div>
+                    <div><Label>Closing Time</Label><Input type="time" value={stationForm.closing_time?.slice(0,5) || '22:00'} onChange={e => setStationForm({...stationForm, closing_time: e.target.value})} /></div>
+                  </div>
+                  <div className="flex items-center gap-2"><input type="checkbox" checked={stationForm.is_24_hours || false} onChange={e => setStationForm({...stationForm, is_24_hours: e.target.checked})} /> <Label>24/7 Operation</Label></div>
+                  <div><Label>Number of Pumps</Label><Input type="number" value={stationForm.number_of_pumps || 0} onChange={e => setStationForm({...stationForm, number_of_pumps: parseInt(e.target.value)})} /></div>
+                  <div><Label>Business License Number</Label><Input value={stationForm.business_license_number || ''} onChange={e => setStationForm({...stationForm, business_license_number: e.target.value})} /></div>
+                </div>
+              )}
+            </Card>
+
+            {/* Operators Section */}
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Station Operators</h3>
+                <Button variant="outline" size="sm" onClick={() => window.location.href = '/station-owner/operators'}>
+                  <Plus className="size-4 mr-1" /> Manage
+                </Button>
+              </div>
+              {operators.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No operators assigned yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {operators.slice(0, 5).map(op => (
+                    <div key={op.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div><p className="font-medium">{op.full_name}</p><p className="text-xs text-gray-500">{op.email}</p></div>
+                      <Badge className={op.operator_status === 'active' ? 'bg-green-600' : 'bg-red-600'}>{op.operator_status}</Badge>
+                    </div>
+                  ))}
+                  {operators.length > 5 && <p className="text-sm text-gray-500 text-center">+{operators.length - 5} more operators</p>}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="space-y-4">
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Owner Profile</h3>
+                {!editingProfile ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
+                    <Edit2 className="size-4 mr-1" /> Edit
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingProfile(false)}><X className="size-4" /> Cancel</Button>
+                    <Button variant="default" size="sm" onClick={handleSaveProfile}><Save className="size-4 mr-1" /> Save</Button>
+                  </div>
+                )}
+              </div>
+              {!editingProfile ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3"><User className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Full Name</p><p className="font-medium">{user?.full_name}</p></div></div>
+                  <div className="flex items-start gap-3"><Mail className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Email</p><p className="font-medium">{user?.email}</p></div></div>
+                  <div className="flex items-start gap-3"><Phone className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Phone</p><p className="font-medium">{user?.phone}</p></div></div>
+                  <div className="flex items-start gap-3"><MapPin className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Address</p><p className="font-medium">{user?.address || 'Not set'}</p></div></div>
+                  <div className="flex items-start gap-3"><FileText className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Business License</p><p className="font-medium">{user?.business_license_number}</p></div></div>
+                  <div className="flex items-start gap-3"><FileText className="size-5 text-gray-400" /><div><p className="text-xs text-gray-500">Tax ID</p><p className="font-medium">{user?.tax_identification_number || 'Not set'}</p></div></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div><Label>Full Name</Label><Input value={profileForm.full_name} onChange={e => setProfileForm({...profileForm, full_name: e.target.value})} /></div>
+                  <div><Label>Email</Label><Input value={profileForm.email} disabled /></div>
+                  <div><Label>Phone</Label><Input value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} /></div>
+                  <div><Label>Address</Label><Input value={profileForm.address} onChange={e => setProfileForm({...profileForm, address: e.target.value})} /></div>
+                  <div><Label>Business License Number</Label><Input value={profileForm.business_license_number} onChange={e => setProfileForm({...profileForm, business_license_number: e.target.value})} /></div>
+                  <div><Label>Tax Identification Number</Label><Input value={profileForm.tax_identification_number} onChange={e => setProfileForm({...profileForm, tax_identification_number: e.target.value})} /></div>
+                  <div><Label>Business Address</Label><Input value={profileForm.business_address} onChange={e => setProfileForm({...profileForm, business_address: e.target.value})} /></div>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <h3 className="font-semibold text-lg mb-4">Security</h3>
+              <Button variant="outline" onClick={() => setShowChangePassword(true)} className="w-full justify-start">
+                <Lock className="size-4 mr-2" /> Change Password
               </Button>
+            </Card>
+
+            <Card className="p-5">
+              <h3 className="font-semibold text-lg mb-4">Danger Zone</h3>
+              <Button variant="destructive" onClick={() => {/* logout or delete account */}} className="w-full justify-start">
+                <LogOut className="size-4 mr-2" /> Sign Out
+              </Button>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Change Password</h3>
+              <button onClick={() => setShowChangePassword(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="size-5" /></button>
             </div>
-          </Card>
+            <div className="space-y-4">
+              <div><Label>Current Password</Label><Input type="password" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} /></div>
+              <div><Label>New Password</Label><Input type="password" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} /></div>
+              <div><Label>Confirm New Password</Label><Input type="password" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} /></div>
+              <Button onClick={handleChangePassword} className="w-full">Update Password</Button>
+            </div>
+          </div>
         </div>
-
-        {/* Performance Overview */}
-{stats && (
-  <Card className="p-5">
-    <div className="flex items-center gap-2 mb-4">
-      <TrendingUp className="size-5 text-primary" />
-      <h3 className="font-semibold text-lg">Station Performance</h3>
-    </div>
-
-    <div className="grid md:grid-cols-4 gap-4">
-      <div className="text-center p-4 bg-gray-50 rounded-lg">
-        <p className="text-2xl font-bold text-green-600">
-          ETB {stats.total_revenue?.toLocaleString() ?? '0'}
-        </p>
-        <p className="text-sm text-gray-600 mt-1">Total Revenue</p>
-      </div>
-
-      <div className="text-center p-4 bg-gray-50 rounded-lg">
-        <p className="text-2xl font-bold">{stats.total_reservations ?? 0}</p>
-        <p className="text-sm text-gray-600 mt-1">Total Reservations</p>
-      </div>
-
-      <div className="text-center p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center justify-center gap-1 mb-1">
-          <Star className="size-5 text-yellow-500 fill-yellow-500" />
-          <p className="text-2xl font-bold">{(stats.average_rating ?? 0).toFixed(1)}</p>
-        </div>
-        <p className="text-sm text-gray-600 mt-1">Average Rating</p>
-      </div>
-
-      <div className="text-center p-4 bg-gray-50 rounded-lg">
-        <p className="text-2xl font-bold text-blue-600">{stats.total_reviews ?? 0}</p>
-        <p className="text-sm text-gray-600 mt-1">Customer Reviews</p>
-      </div>
-    </div>
-  </Card>
-)}
-      </div>
+      )}
     </div>
   );
 }

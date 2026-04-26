@@ -7,6 +7,8 @@ import { DeliveryRequestsPage } from './DeliveryRequestsPage';
 import { StationSettingsPage } from './StationSettingsPage';
 import { OwnerNotifications } from './OwnerNotifications';
 import { OwnerProfile } from './OwnerProfile';
+import { OwnerAnalytics } from './OwnerAnalytics';
+import { FuelDeliveryRequest } from './FuelDeliveryRequest';
 import {
   Fuel, LayoutDashboard, Users, Truck, Settings, Bell, User, LogOut, Menu, X, Building2, BarChart3
 } from 'lucide-react';
@@ -26,6 +28,7 @@ export function OwnerLayout() {
     { id: 'operators', label: 'Manage Operators', icon: Users },
     { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
     { id: 'settings', label: 'Station Settings', icon: Settings },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
   ];
@@ -34,8 +37,9 @@ export function OwnerLayout() {
     switch (activeTab) {
       case 'dashboard': return <OwnerDashboard onNavigate={setActiveTab} />;
       case 'operators': return <OperatorManagementPage />;
-      case 'deliveries': return <DeliveryRequestsPage />;
+      case 'deliveries': return <FuelDeliveryRequest />;
       case 'settings': return <StationSettingsPage />;
+      case 'analytics': return <OwnerAnalytics />;
       case 'notifications': return <OwnerNotifications />;
       case 'profile': return <OwnerProfile onLogout={handleLogout} />;
       default: return <OwnerDashboard onNavigate={setActiveTab} />;

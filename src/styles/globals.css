@@ -183,3 +183,38 @@
 html {
   font-size: var(--font-size);
 }
+
+.custom-user-marker div {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6;
+  border-radius: 50%;
+}
+/* Ensure map container does not interfere with modals */
+#map {
+  z-index: 0;
+}
+.fixed.inset-0 {
+  z-index: 1000;
+}
+
+/* Fix for Radix UI select portal z-index */
+[data-radix-popper-content-wrapper] {
+  z-index: 100 !important;
+}
+
+/* Ensure dialog overlay doesn't capture clicks */
+/* .fixed.inset-0.z-50 {
+  pointer-events: none;
+}
+.fixed.inset-0.z-50 > div {
+  pointer-events: auto;
+} */
+
+/* Ensure Radix UI select portal appears above modal */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Also fix for any other Radix portals */
+[data-radix-portal] {
+  z-index: 9999 !important;
+}
