@@ -349,7 +349,7 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
 
           <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => onNavigate('fuel')}>
             <Fuel className="size-12 text-green-600 mb-3" />
-            <h3 className="font-semibold text-lg mb-1">Fuel Management</h3>
+            <h3 className="font-semibold text-lg mb-1">Fuel Stock</h3>
             <p className="text-gray-600 text-sm">View inventory status</p>
             <div className="mt-4 pt-3 border-t">
               <p className="text-xs font-medium text-gray-700">{inventory.length} fuel types</p>
