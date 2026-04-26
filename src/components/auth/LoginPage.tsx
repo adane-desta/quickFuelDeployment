@@ -190,18 +190,6 @@ export function LoginPage() {
               </Button>
             </form>
 
-            {/* Register Link */}
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Don't have an account?{' '}
-                <button
-                  onClick={() => navigate('/register/driver')}
-                  className="text-purple-600 hover:text-purple-700 font-medium"
-                >
-                  Sign up as Driver
-                </button>
-              </p>
-            </div>
           </div>
         </div>
       </div>
