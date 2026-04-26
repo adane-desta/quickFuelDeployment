@@ -203,16 +203,6 @@ export function LoginPage() {
               </p>
             </div>
           </div>
-
-          {/* Demo Credentials Info */}
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-900 font-medium mb-2">Quick Access:</p>
-            <div className="space-y-1 text-xs text-blue-700">
-              <p>• Admin: Use the credentials you created in Supabase</p>
-              <p>• Operators: Credentials sent after station registration</p>
-              <p>• Drivers: Register using the sign up form</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
