@@ -8,10 +8,9 @@ import { OperatorReservations } from './OperatorReservations';
 import { PickupVerification } from './PickupVerification';
 import { OperatorNotifications } from './OperatorNotifications';
 import { OperatorProfile } from './OperatorProfile';
-import { TodayReservationsPage } from './TodayReservationsPage';
-import { FuelInventoryViewPage } from './FuelInventoryViewPage';
+import { CarClassManagement } from './CarClass';
 import {
-  Fuel, LayoutDashboard, Droplets, Users, Calendar, QrCode, Bell, User, LogOut, Menu, X, Settings
+  Fuel, LayoutDashboard, Droplets, Users, Calendar, QrCode, Car, Bell, User, LogOut, Menu, X, Settings
 } from 'lucide-react';
 
 export function OperatorLayout() {
@@ -34,10 +33,11 @@ export function OperatorLayout() {
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'fuel', label: 'Fuel Management', icon: Droplets },
+    { id: 'fuel', label: 'Fuel Stock', icon: Droplets },
     { id: 'queue', label: 'Queue Management', icon: Users },
     { id: 'reservations', label: 'Reservations', icon: Calendar },
     { id: 'verify', label: 'Verify Pickup', icon: QrCode },
+    { id: 'carClass', label: 'Car Class', icon: Car },    
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
     { id: 'profile', label: 'Profile', icon: User },
   ];
@@ -49,6 +49,7 @@ export function OperatorLayout() {
       case 'queue': return <QueueManagement />;
       case 'reservations': return <OperatorReservations />;
       case 'verify': return <PickupVerification />;
+      case 'carClass': return <CarClassManagement />
       case 'notifications': return <OperatorNotifications />;
       case 'profile': return <OperatorProfile onLogout={handleLogout} />;
       default: return <OperatorDashboard onNavigate={setActiveTab} />;
