@@ -259,10 +259,6 @@ export function FuelManagement() {
                     <span className="font-bold text-green-700">ETB {selectedFuel.effective_price?.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Custom Price</span>
-                    <span>{selectedFuel.custom_price_per_liter ? `ETB ${selectedFuel.custom_price_per_liter.toFixed(2)}` : 'Not set'}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-600">Base Price</span>
                     <span>ETB {selectedFuel.fuel_type?.base_price_per_liter?.toFixed(2) || '—'}</span>
                   </div>

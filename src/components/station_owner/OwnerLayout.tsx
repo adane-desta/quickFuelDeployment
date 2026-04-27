@@ -7,10 +7,11 @@ import { DeliveryRequestsPage } from './DeliveryRequestsPage';
 import { StationSettingsPage } from './StationSettingsPage';
 import { OwnerNotifications } from './OwnerNotifications';
 import { OwnerProfile } from './OwnerProfile';
+import { RefundRequests } from './RefundRequests';
 import { OwnerAnalytics } from './OwnerAnalytics';
 import { FuelDeliveryRequest } from './FuelDeliveryRequest';
 import {
-  Fuel, LayoutDashboard, Users, Truck, Settings, Bell, User, LogOut, Menu, X, Building2, BarChart3
+  Fuel, LayoutDashboard, Users, Truck, Settings, Bell, User, LogOut, Menu, X, Building2, BarChart3, DollarSign
 } from 'lucide-react';
 
 export function OwnerLayout() {
@@ -27,6 +28,7 @@ export function OwnerLayout() {
     { id: 'dashboard', label: 'Dashboard & Analytics', icon: LayoutDashboard },
     { id: 'operators', label: 'Manage Operators', icon: Users },
     { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
+    { id: 'refunds', label: 'Refund Requests', icon: DollarSign },
     { id: 'settings', label: 'Station Settings', icon: Settings },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'notifications', label: 'Notifications', icon: Bell, badge: 2 },
@@ -39,6 +41,7 @@ export function OwnerLayout() {
       case 'operators': return <OperatorManagementPage />;
       case 'deliveries': return <FuelDeliveryRequest />;
       case 'settings': return <StationSettingsPage />;
+      case 'refunds': return <RefundRequests />;
       case 'analytics': return <OwnerAnalytics />;
       case 'notifications': return <OwnerNotifications />;
       case 'profile': return <OwnerProfile onLogout={handleLogout} />;
