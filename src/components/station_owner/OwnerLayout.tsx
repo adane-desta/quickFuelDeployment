@@ -11,7 +11,7 @@ import { RefundRequests } from './RefundRequests';
 import { OwnerAnalytics } from './OwnerAnalytics';
 import { FuelDeliveryRequest } from './FuelDeliveryRequest';
 import {
-  Fuel, LayoutDashboard, Users, Truck, Settings, Bell, User, LogOut, Menu, X, Building2, BarChart3
+  Fuel, LayoutDashboard, Users, Truck, Settings, Bell, User, LogOut, Menu, X, Building2, BarChart3, DollarSign
 } from 'lucide-react';
 
 export function OwnerLayout() {

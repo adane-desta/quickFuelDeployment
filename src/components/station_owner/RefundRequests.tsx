@@ -7,7 +7,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'sonner';
-import { DollarSign, User, Fuel, Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { DollarSign, User, Fuel, Calendar, Clock, CheckCircle } from 'lucide-react';
 
 interface RefundRequest {
   id: string;
@@ -36,7 +36,6 @@ export function RefundRequests() {
   const loadRefundRequests = async () => {
     setLoading(true);
     try {
-      // Get owner's station
       const stations = await stationService.getOwnerStations(user.id);
       if (!stations.length) {
         setLoading(false);
@@ -44,7 +43,6 @@ export function RefundRequests() {
       }
       const stationId = stations[0].id;
 
-      // Fetch pending refund reservations for this station
       const { data, error } = await supabase
         .from('reservations')
         .select(`
@@ -52,8 +50,8 @@ export function RefundRequests() {
           quantity,
           total_price,
           refund_amount,
-          slot_date,
-          time_slot:time_slot_id (start_time, end_time),
+          refund_requested_at,
+          time_slot:time_slot_id (slot_date, start_time, end_time),
           driver:driver_id (full_name, phone),
           fuel_type:fuel_type_id (name)
         `)
@@ -71,7 +69,7 @@ export function RefundRequests() {
         quantity: item.quantity,
         total_price: item.total_price,
         refund_amount: item.refund_amount || item.total_price * 0.92,
-        slot_date: item.slot_date,
+        slot_date: item.time_slot?.slot_date,
         slot_start_time: item.time_slot?.start_time,
         slot_end_time: item.time_slot?.end_time,
         requested_at: item.refund_requested_at,
@@ -88,15 +86,69 @@ export function RefundRequests() {
   const handleApprove = async (reservationId: string) => {
     setProcessing(reservationId);
     try {
-      const { error } = await supabase.functions.invoke('approve-refund', {
-        body: { reservationId, approvedBy: user.id },
+      // Get driver_id, refund_amount, and total_price
+      const { data: reservation, error: fetchError } = await supabase
+        .from('reservations')
+        .select('driver_id, refund_amount, total_price, station_id')
+        .eq('id', reservationId)
+        .single();
+      if (fetchError) throw fetchError;
+  
+      // Calculate the fee (8% of total_price)
+      const feeAmount = reservation.total_price * 0.08;
+  
+      // Update status to refunded
+      const { error: updateError } = await supabase
+        .from('reservations')
+        .update({
+          status: 'refunded',
+          refund_approved_by: user.id,
+          refund_approved_at: new Date().toISOString(),
+        })
+        .eq('id', reservationId);
+      if (updateError) throw updateError;
+  
+      // Insert refund fee record
+      const { error: feeError } = await supabase
+        .from('station_refund_fees')
+        .insert({
+          station_id: reservation.station_id,
+          reservation_id: reservationId,
+          fee_amount: feeAmount,
+        });
+      if (feeError) console.error('Fee record error:', feeError);
+  
+      // Insert notification for driver
+      await supabase.from('notifications').insert({
+        user_id: reservation.driver_id,
+        type: 'refund',
+        title: 'Refund Approved',
+        message: `Your refund of ETB ${reservation.refund_amount} has been approved.`,
+        priority: 'high',
+        related_id: reservationId,
+        related_type: 'reservation',
+        is_read: false,
+        created_at: new Date().toISOString(),
       });
-      if (error) throw error;
+  
+      // Log system activity
+      await supabase.from('system_activity').insert({
+        user_id: user.id,
+        user_role: 'station_owner',
+        action: 'REFUND_APPROVED',
+        description: `Approved refund for reservation ${reservationId}. Station fee: ETB ${feeAmount}`,
+        category: 'refund',
+        metadata: { reservation_id: reservationId, fee_amount: feeAmount },
+        success: true,
+        created_at: new Date().toISOString(),
+      });
+  
       toast.success('Refund approved successfully');
-      // Remove from list
       setRequests(prev => prev.filter(r => r.id !== reservationId));
     } catch (error) {
+      console.error('Approval error:', error);
       toast.error('Failed to approve refund');
+      loadRefundRequests(); // reload to ensure consistency
     } finally {
       setProcessing(null);
     }
@@ -114,7 +166,7 @@ export function RefundRequests() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Refund Requests</h2>
-        <p className="text-gray-600">Approve or reject driver refund requests (8% service fee deducted)</p>
+        <p className="text-gray-600">Approve driver refund requests (8% service fee deducted)</p>
       </div>
 
       {requests.length === 0 ? (

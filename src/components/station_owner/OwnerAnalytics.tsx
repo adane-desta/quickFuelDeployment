@@ -139,6 +139,20 @@ export function OwnerAnalytics() {
 
     if (resError) throw resError;
 
+    // Fetch refund fees for the same period
+    const { data: refundFees, error: feeError } = await supabase
+      .from('station_refund_fees')
+      .select('fee_amount, created_at')
+      .eq('station_id', stationIdParam)
+      .gte('created_at', startISO)
+      .lte('created_at', endISO);
+
+    if (feeError) {
+      console.error('Error fetching refund fees:', feeError);
+    }
+
+    const totalRefundFees = refundFees?.reduce((sum, fee) => sum + (fee.fee_amount || 0), 0) || 0;
+
     // Fetch fuel types for mapping
     const { data: fuelTypes, error: ftError } = await supabase
       .from('fuel_types')
@@ -149,10 +163,11 @@ export function OwnerAnalytics() {
     // Calculate aggregates
     const completedRes = reservations?.filter(r => r.status === 'completed') || [];
     const cancelledRes = reservations?.filter(r => r.status === 'cancelled' || r.status === 'expired') || [];
-    const totalRevenue = completedRes.reduce((sum, r) => sum + (r.total_price || 0), 0);
+    const completedReservationsRevenue = completedRes.reduce((sum, r) => sum + (r.total_price || 0), 0);
+    const totalRevenue = completedReservationsRevenue + totalRefundFees;
     const totalFuelDispensed = completedRes.reduce((sum, r) => sum + (r.quantity || 0), 0);
     const completionRate = reservations?.length ? (completedRes.length / reservations.length) * 100 : 0;
-    const avgOrderValue = completedRes.length ? totalRevenue / completedRes.length : 0;
+    const avgOrderValue = completedRes.length ? completedReservationsRevenue / completedRes.length : 0;
 
     setAnalytics({
       total_reservations: reservations?.length || 0,

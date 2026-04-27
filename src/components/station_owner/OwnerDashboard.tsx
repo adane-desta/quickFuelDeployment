@@ -91,7 +91,7 @@ export function OwnerDashboard() {
       const deliveriesData = await deliveryService.getStationDeliveries(ownerStation.id);
       setPendingDeliveries(deliveriesData.filter(d => d.status === 'pending'));
 
-      // Load analytics based on date range
+      // Calculate date range
       const today = new Date();
       let startDate = new Date();
       let endDate = new Date();
@@ -108,19 +108,38 @@ export function OwnerDashboard() {
         endDate.setHours(23, 59, 59, 999);
       }
 
+      const startISO = startDate.toISOString();
+      const endISO = endDate.toISOString();
+
+      // Fetch reservations
       const { data: reservations, error: resError } = await supabase
         .from('reservations')
         .select('*')
         .eq('station_id', ownerStation.id)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+        .gte('created_at', startISO)
+        .lte('created_at', endISO);
 
       if (resError) throw resError;
+
+      // Fetch refund fees for the same period
+      const { data: refundFees, error: feeError } = await supabase
+        .from('station_refund_fees')
+        .select('fee_amount, created_at')
+        .eq('station_id', ownerStation.id)
+        .gte('created_at', startISO)
+        .lte('created_at', endISO);
+
+      if (feeError) {
+        console.error('Error fetching refund fees:', feeError);
+      }
+
+      const totalRefundFees = refundFees?.reduce((sum, fee) => sum + (fee.fee_amount || 0), 0) || 0;
 
       const totalReservations = reservations.length;
       const completedReservations = reservations.filter(r => r.status === 'completed').length;
       const cancelledReservations = reservations.filter(r => r.status === 'cancelled' || r.status === 'expired').length;
-      const totalRevenue = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.total_price || 0), 0);
+      const completedReservationsRevenue = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.total_price || 0), 0);
+      const totalRevenue = completedReservationsRevenue + totalRefundFees;
       const totalFuelDispensed = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.quantity || 0), 0);
 
       setStats({
