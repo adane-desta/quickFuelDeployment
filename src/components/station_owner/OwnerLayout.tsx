@@ -7,6 +7,7 @@ import { DeliveryRequestsPage } from './DeliveryRequestsPage';
 import { StationSettingsPage } from './StationSettingsPage';
 import { OwnerNotifications } from './OwnerNotifications';
 import { OwnerProfile } from './OwnerProfile';
+import { FuelManagementOwner } from './FuelManagementOwner';
 import { RefundRequests } from './RefundRequests';
 import { OwnerAnalytics } from './OwnerAnalytics';
 import { FuelDeliveryRequest } from './FuelDeliveryRequest';
@@ -26,6 +27,7 @@ export function OwnerLayout() {
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard & Analytics', icon: LayoutDashboard },
+    { id: 'fuel', label: 'Fuel Stock', icon: Fuel },
     { id: 'operators', label: 'Manage Operators', icon: Users },
     { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
     { id: 'refunds', label: 'Refund Requests', icon: DollarSign },
@@ -40,6 +42,7 @@ export function OwnerLayout() {
       case 'dashboard': return <OwnerDashboard onNavigate={setActiveTab} />;
       case 'operators': return <OperatorManagementPage />;
       case 'deliveries': return <FuelDeliveryRequest />;
+      case 'fuel': return <FuelManagementOwner />;
       case 'settings': return <StationSettingsPage />;
       case 'refunds': return <RefundRequests />;
       case 'analytics': return <OwnerAnalytics />;
