@@ -105,17 +105,6 @@ export function FuelPriceManagement() {
         <p className="text-gray-600">Set and manage system-wide fuel prices. All prices are in Ethiopian Birr (ETB) per liter.</p>
       </div>
 
-      {/* Alert */}
-      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm text-amber-900 mb-1">System-Wide Pricing Authority</p>
-          <p className="text-xs text-amber-700">
-            Fuel prices set here apply to all stations and reservations across the QuickFuel platform. Changes are effective from the specified date and
-            will be reflected in all future reservations.
-          </p>
-        </div>
-      </div>
 
       {/* Loading State */}
       {loading ? (

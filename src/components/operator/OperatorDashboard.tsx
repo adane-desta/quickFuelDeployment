@@ -1,22 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { stationService, inventoryService } from '../../lib/supabase/database';
 import { reservationService } from '../../lib/supabase/database-advanced';
 import { supabase } from '../../lib/supabase/client';
 import { notifyError, notifySuccess } from '../../lib/utils/notifications';
 import type { Station, Reservation, StationFuelInventory } from '../../types/advanced';
-import {
-  Calendar, Users, CheckCircle, Clock, Fuel, TrendingUp, Droplet, QrCode,
-  AlertCircle, Activity, RefreshCw, Eye, MapPin, Phone, Clock3, Package,
-  AlertTriangle, CheckCircle2, XCircle, ArrowRight, Timer, DollarSign, Gauge,
-  Filter, Car, Truck, Ambulance, Award
-} from 'lucide-react';
 import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Skeleton } from '../ui/skeleton';
+import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Separator } from '../ui/separator';
+import { Skeleton } from '../ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -24,6 +18,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+import {
+  Calendar,
+  Users,
+  CheckCircle,
+  Clock,
+  Fuel,
+  TrendingUp,
+  Droplet,
+  QrCode,
+  AlertCircle,
+  Activity,
+  RefreshCw,
+  MapPin,
+  Phone,
+  Clock3,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  DollarSign,
+  Car,
+  Truck,
+  Ambulance,
+  Bell,
+} from 'lucide-react';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 type DateRange = 'today' | 'week' | 'month';
 
@@ -38,7 +58,6 @@ interface DashboardStats {
   total_revenue: number;
 }
 
-// Priority mapping for car classes
 const getCarClassPriority = (className: string): number => {
   if (className === 'Ambulance') return 1;
   if (className === 'Agricultural') return 2;
@@ -60,39 +79,18 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
   const [refreshing, setRefreshing] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>('today');
   const [nextInQueue, setNextInQueue] = useState<Reservation[]>([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [stationId, setStationId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) loadDashboardData();
-  }, [user, dateRange]);
-
-  const getDateRangeFilter = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
-    if (dateRange === 'today') {
-      return { start: today.toISOString(), end: endOfDay.toISOString() };
-    } else if (dateRange === 'week') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 7);
-      return { start: start.toISOString(), end: endOfDay.toISOString() };
-    } else {
-      const start = new Date(today);
-      start.setMonth(today.getMonth() - 1);
-      return { start: start.toISOString(), end: endOfDay.toISOString() };
-    }
-  };
-
-  const loadDashboardData = async () => {
+  // Load data
+  const loadDashboardData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
       const stationData = await stationService.getOperatorStation(user.id);
-      if (!stationData) {
-        setLoading(false);
-        return;
-      }
+      if (!stationData) { setLoading(false); return; }
       setStation(stationData);
+      setStationId(stationData.id);
 
       const { start, end } = getDateRangeFilter();
       const [reservationsData, inventoryData] = await Promise.all([
@@ -100,32 +98,20 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
         inventoryService.getStationInventory(stationData.id),
       ]);
 
-      const filtered = reservationsData.filter(r => {
-        const slotDate = r.slot_date;
-        return slotDate >= start && slotDate <= end;
-      });
-
+      const filtered = reservationsData.filter(r => r.slot_date >= start && r.slot_date <= end);
       setReservations(filtered);
       setInventory(inventoryData);
 
-      // Build Next in Queue (today's confirmed reservations only)
       const todayStr = new Date().toISOString().split('T')[0];
       const todayConfirmed = filtered.filter(r => r.status === 'confirmed' && r.slot_date === todayStr);
 
-      // Fetch driver details (plate number, car class)
       const driverIds = todayConfirmed.map(r => r.driver_id);
       let driverDetailsMap = new Map();
-      if (driverIds.length > 0) {
-        const { data: drivers, error: driversError } = await supabase
-          .from('users')
-          .select('id, plate_number, car_class_id')
-          .in('id', driverIds);
-        if (!driversError && drivers) {
+      if (driverIds.length) {
+        const { data: drivers } = await supabase.from('users').select('id, plate_number, car_class_id').in('id', driverIds);
+        if (drivers) {
           const carClassIds = drivers.map(d => d.car_class_id).filter(Boolean);
-          const { data: carClasses, error: ccError } = await supabase
-            .from('car_classes')
-            .select('id, name')
-            .in('id', carClassIds);
+          const { data: carClasses } = await supabase.from('car_classes').select('id, name').in('id', carClassIds);
           const carClassNameMap = new Map(carClasses?.map(cc => [cc.id, cc.name]) || []);
           drivers.forEach(driver => {
             const className = carClassNameMap.get(driver.car_class_id) || 'Regular';
@@ -147,19 +133,46 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
 
       const sorted = enriched.sort((a, b) => {
         if (a.priority !== b.priority) return a.priority - b.priority;
-        if (a.slot_start_time !== b.slot_start_time) {
-          return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
-        }
+        if (a.slot_start_time !== b.slot_start_time) return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
         return (a.created_at || '').localeCompare(b.created_at || '');
       });
-
       setNextInQueue(sorted.slice(0, 10));
+
+      const { count } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false);
+      setNotificationCount(count || 0);
     } catch (error) {
       notifyError('Failed to load dashboard data', error);
     } finally {
       setLoading(false);
     }
+  }, [user, dateRange]);
+
+  const getDateRangeFilter = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (dateRange === 'today') return { start: today.toISOString(), end: endOfDay.toISOString() };
+    if (dateRange === 'week') {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 7);
+      return { start: start.toISOString(), end: endOfDay.toISOString() };
+    }
+    const start = new Date(today);
+    start.setMonth(today.getMonth() - 1);
+    return { start: start.toISOString(), end: endOfDay.toISOString() };
   };
+
+  useEffect(() => {
+    if (user) loadDashboardData();
+  }, [user, dateRange, loadDashboardData]);
+
+  // Real-time subscriptions
+  useRealtimeSubscription('reservations', { column: 'station_id', value: stationId || '' }, () => loadDashboardData(), [stationId]);
+  useRealtimeSubscription('station_fuel_inventory', { column: 'station_id', value: stationId || '' }, () => loadDashboardData(), [stationId]);
+  useRealtimeSubscription('notifications', { column: 'user_id', value: user?.id || '' }, (payload) => {
+    if (payload.eventType === 'INSERT') setNotificationCount(prev => prev + 1);
+  }, [user?.id]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -175,48 +188,18 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
     cancelled: reservations.filter(r => r.status === 'cancelled').length,
     expired: reservations.filter(r => r.status === 'expired').length,
     active_now: reservations.filter(r => r.status === 'dispensing').length,
-    total_fuel_dispensed: reservations
-      .filter(r => r.status === 'completed')
-      .reduce((sum, r) => sum + (r.quantity || 0), 0),
-    total_revenue: reservations
-      .filter(r => r.status === 'completed')
-      .reduce((sum, r) => sum + (r.total_price || 0), 0),
+    total_fuel_dispensed: reservations.filter(r => r.status === 'completed').reduce((s, r) => s + (r.quantity || 0), 0),
+    total_revenue: reservations.filter(r => r.status === 'completed').reduce((s, r) => s + (r.total_price || 0), 0),
   };
 
   const lowStockCount = inventory.filter(inv => inv.stock_status === 'low').length;
   const getStockPercentage = (current: number, max: number) => Math.min((current / max) * 100, 100);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-7xl mx-auto space-y-4">
-          <Skeleton className="h-32" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
-          </div>
-          <Skeleton className="h-64" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!station) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-4xl mx-auto">
-          <Card className="p-12 text-center">
-            <AlertCircle className="size-20 mx-auto mb-4 text-yellow-500" />
-            <h3 className="text-2xl font-bold mb-2">No Station Assigned</h3>
-            <p className="text-gray-600">You don't have a station assigned to your account yet.</p>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-gray-50 p-4"><Skeleton className="h-32" /><div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">{Array(4).fill(0).map((_,i) => <Skeleton key={i} className="h-32" />)}</div><Skeleton className="h-64 mt-4" /></div>;
+  if (!station) return <div className="min-h-screen bg-gray-50 p-4"><Card className="p-12 text-center"><AlertCircle className="size-20 mx-auto mb-4 text-yellow-500" /><h3 className="text-2xl font-bold mb-2">No Station Assigned</h3><p className="text-gray-600">You don't have a station assigned to your account yet.</p></Card></div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white">
         <div className="max-w-7xl mx-auto p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
@@ -224,9 +207,15 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">Operator Dashboard</h1>
               <p className="text-green-100 text-sm md:text-base">Welcome back, {user?.full_name}</p>
             </div>
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onNavigate('notifications')} className="relative p-2 hover:bg-white/20 rounded-full">
+                <Bell className="size-5 text-white" />
+                {notificationCount > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center">{notificationCount}</span>}
+              </button>
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={handleRefresh} disabled={refreshing}>
+                <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div className="flex items-center gap-2"><MapPin className="size-4 text-green-200" /><span className="text-green-100 truncate">{station.address?.split(',')[0]}</span></div>
@@ -238,7 +227,6 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
       </div>
 
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-        {/* Date Range Selector */}
         <div className="flex justify-end">
           <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
             <SelectTrigger className="w-40"><SelectValue placeholder="Select range" /></SelectTrigger>
@@ -246,23 +234,13 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
           </Select>
         </div>
 
-        {/* Alerts */}
         {(lowStockCount > 0 || stats.active_now > 0) && (
           <div className="space-y-3">
-            {stats.active_now > 0 && (
-              <Card className="p-4 bg-blue-50 border-blue-200">
-                <div className="flex items-center gap-3"><Activity className="size-6 text-blue-600 flex-shrink-0 animate-pulse" /><div className="flex-1"><p className="font-medium text-blue-900">Active Dispensing</p><p className="text-sm text-blue-800">{stats.active_now} customer(s) currently being served.</p></div><Button size="sm" onClick={() => onNavigate('reservations')}>View All</Button></div>
-              </Card>
-            )}
-            {lowStockCount > 0 && (
-              <Card className="p-4 bg-yellow-50 border-yellow-200">
-                <div className="flex items-center gap-3"><AlertTriangle className="size-6 text-yellow-600 flex-shrink-0" /><div className="flex-1"><p className="font-medium text-yellow-900">Low Fuel Stock</p><p className="text-sm text-yellow-800">{lowStockCount} fuel type(s) running low.</p></div><Button variant="outline" size="sm" onClick={() => onNavigate('fuel')}>Check Inventory</Button></div>
-              </Card>
-            )}
+            {stats.active_now > 0 && <Card className="p-4 bg-blue-50 border-blue-200"><div className="flex items-center gap-3"><Activity className="size-6 text-blue-600 animate-pulse" /><div className="flex-1"><p className="font-medium text-blue-900">Active Dispensing</p><p className="text-sm text-blue-800">{stats.active_now} customer(s) currently being served.</p></div><Button size="sm" onClick={() => onNavigate('reservations')}>View All</Button></div></Card>}
+            {lowStockCount > 0 && <Card className="p-4 bg-yellow-50 border-yellow-200"><div className="flex items-center gap-3"><AlertTriangle className="size-6 text-yellow-600" /><div className="flex-1"><p className="font-medium text-yellow-900">Low Fuel Stock</p><p className="text-sm text-yellow-800">{lowStockCount} fuel type(s) running low.</p></div><Button variant="outline" size="sm" onClick={() => onNavigate('fuel')}>Check Inventory</Button></div></Card>}
           </div>
         )}
 
-        {/* Key Metrics - 5 cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card className="p-4"><div className="flex items-center justify-between mb-3"><Calendar className="size-8 text-blue-600" /><TrendingUp className="size-4 text-green-600" /></div><p className="text-2xl font-bold mb-1">{stats.total}</p><p className="text-xs text-gray-600">Total</p><p className="text-xs text-gray-400">{dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'This week' : 'This month'}</p></Card>
           <Card className="p-4"><div className="flex items-center justify-between mb-3"><Users className="size-8 text-yellow-600" />{stats.pending > 0 && <Badge className="bg-yellow-600 text-xs">{stats.pending}</Badge>}</div><p className="text-2xl font-bold mb-1">{stats.pending}</p><p className="text-xs text-gray-600">In Queue</p></Card>
@@ -271,21 +249,15 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
           <Card className="p-4"><div className="flex items-center justify-between mb-3"><XCircle className="size-8 text-red-600" /><AlertCircle className="size-4 text-red-600" /></div><p className="text-2xl font-bold mb-1">{stats.expired}</p><p className="text-xs text-gray-600">Expired</p></Card>
         </div>
 
-        {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-4">
           <Card className="p-6 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-blue-600 to-blue-700 text-white" onClick={() => onNavigate('verify')}><QrCode className="size-12 mb-3" /><h3 className="font-semibold text-lg mb-1">Verify Pickup Code</h3><p className="text-blue-100 text-sm">Scan or enter 6-digit code</p><div className="mt-4 flex items-center justify-between"><span className="text-xs font-medium">Quick Action</span><ArrowRight className="size-5" /></div></Card>
           <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => onNavigate('reservations')}><Calendar className="size-12 text-blue-600 mb-3" /><h3 className="font-semibold text-lg mb-1">View Reservations</h3><p className="text-gray-600 text-sm">Schedule and bookings</p><div className="mt-4 pt-3 border-t"><p className="text-xs font-medium text-gray-700">{stats.total} reservations {dateRange === 'today' ? 'today' : 'in period'}</p></div></Card>
           <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => onNavigate('fuel')}><Fuel className="size-12 text-green-600 mb-3" /><h3 className="font-semibold text-lg mb-1">Fuel Management</h3><p className="text-gray-600 text-sm">View inventory status</p><div className="mt-4 pt-3 border-t"><p className="text-xs font-medium text-gray-700">{inventory.length} fuel types</p></div></Card>
         </div>
 
-        {/* Main Content Grid */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Next in Queue */}
           <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2"><Users className="size-5 text-primary" /><h3 className="font-semibold text-lg">Next in Queue</h3></div>
-              <Badge className="bg-yellow-600">{nextInQueue.length} waiting</Badge>
-            </div>
+            <div className="flex items-center justify-between mb-4"><Users className="size-5 text-primary" /><h3 className="font-semibold text-lg">Next in Queue</h3><Badge className="bg-yellow-600">{nextInQueue.length} waiting</Badge></div>
             {nextInQueue.length === 0 ? (
               <div className="text-center py-8"><Users className="size-12 mx-auto mb-3 text-gray-400" /><p className="text-gray-600 mb-2">No customers in queue</p><p className="text-sm text-gray-500">Waiting for new reservations</p></div>
             ) : (
@@ -293,13 +265,7 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
                 {nextInQueue.map((res, idx) => (
                   <div key={res.id} className="p-4 rounded-lg border-2 bg-gray-50 border-gray-200">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold">{idx + 1}</div>
-                        <div>
-                          <p className="font-medium">{res.driver_name}</p>
-                          <p className="text-sm text-gray-600">{res.driver_phone}</p>
-                        </div>
-                      </div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center">{idx + 1}</div><div><p className="font-medium">{res.driver_name}</p><p className="text-sm text-gray-600">{res.driver_phone}</p></div></div>
                       <Badge className="bg-yellow-600">Confirmed</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm mb-3">
@@ -324,9 +290,8 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
             )}
           </Card>
 
-          {/* Fuel Inventory Status */}
           <Card className="p-5">
-            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><Fuel className="size-5 text-primary" /><h3 className="font-semibold text-lg">Fuel Inventory</h3></div><Button variant="outline" size="sm" onClick={() => onNavigate('fuel')}>View Details</Button></div>
+            <div className="flex items-center justify-between mb-4"><Fuel className="size-5 text-primary" /><h3 className="font-semibold text-lg">Fuel Inventory</h3><Button variant="outline" size="sm" onClick={() => onNavigate('fuel')}>View Details</Button></div>
             {inventory.length === 0 ? (
               <div className="text-center py-8"><Fuel className="size-12 mx-auto mb-3 text-gray-400" /><p className="text-gray-600">No fuel inventory data</p></div>
             ) : (
@@ -348,7 +313,6 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
           </Card>
         </div>
 
-        {/* Performance Overview */}
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-4"><TrendingUp className="size-5 text-primary" /><h3 className="font-semibold text-lg">Performance Overview</h3></div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

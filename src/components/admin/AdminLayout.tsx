@@ -8,13 +8,14 @@ import { ReservationMonitoring } from './ReservationMonitoring';
 import { SystemActivity } from './SystemActivity';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminProfile } from './AdminProfile';
+import { FuelManagementAdmin } from './FuelManagementAdmin';
 import { FuelPriceManagement } from './FuelPriceManagement';
 import { AddDriverPage } from './AddDriverPage';        
 import { CarClassManagement } from './CarClassManagement';
 import { SystemAnalytics } from './SystemAnalytics';
 import { DeliveryRequestsManagement } from './DeliveryRequestsManagement';
 import {
-  LayoutDashboard, Users, Building2, Calendar, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus, Truck
+  LayoutDashboard, Users, Building2, Calendar, Fuel, Activity, Bell, User, LogOut, Menu, X, ShieldCheck, DollarSign, BarChart3, Car, UserPlus, Truck
 } from 'lucide-react';
 
 export function AdminLayout() {
@@ -34,6 +35,7 @@ export function AdminLayout() {
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'fuelprices', label: 'Fuel Prices', icon: DollarSign },
+    { id: 'fuelInventory', label: 'Fuel Stock', icon: Fuel },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'deliveries', label: 'Fuel Deliveries', icon: Truck },
     { id: 'users', label: 'User Management', icon: Users },
@@ -51,6 +53,7 @@ export function AdminLayout() {
       case 'dashboard': return <AdminDashboard onNavigate={setActiveTab} />;
       case 'users': return <UserManagement />;
       case 'stations': return <StationManagement />;
+      case 'fuelInventory': return <FuelManagementAdmin />;
       case 'reservations': return <ReservationMonitoring />;
       case 'deliveries': return <DeliveryRequestsManagement />;
       case 'activity': return <SystemActivity />;

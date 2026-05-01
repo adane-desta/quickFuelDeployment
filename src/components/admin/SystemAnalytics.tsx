@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
-import { FuelAnalytics, FuelPrice, Station } from '../../types';
-import { 
-  BarChart3, TrendingUp, Fuel, Zap, Filter, Download, 
+import { Station } from '../../types';
+import {
+  BarChart3, TrendingUp, Fuel, Zap, Filter, Download,
   Droplet, Activity, MapPin, Calendar, Loader2
 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -17,29 +17,28 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
 
-interface AnalyticsRecord {
+interface FuelType {
   id: string;
+  name: string;
+  base_price_per_liter: number;
+}
+
+interface AnalyticsRecord {
   stationId: string;
   stationName: string;
-  fuelType: string;
   fuelTypeId: string;
+  fuelTypeName: string;
   totalAvailable: number;
   totalDispensed: number;
   digitalDispensed: number;
   lastUpdated: string;
 }
 
-interface FuelTypePrice {
-  id: string;
-  name: string;
-  base_price_per_liter: number;
-}
-
 export function SystemAnalytics() {
   const [selectedFuelType, setSelectedFuelType] = useState<string>('All');
   const [selectedStation, setSelectedStation] = useState<string>('All');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsRecord[]>([]);
-  const [fuelTypes, setFuelTypes] = useState<FuelTypePrice[]>([]);
+  const [fuelTypes, setFuelTypes] = useState<FuelType[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,7 +57,7 @@ export function SystemAnalytics() {
       if (stationsError) throw stationsError;
       setStations(stationsData || []);
 
-      // 2. Fetch fuel types (for prices and names)
+      // 2. Fetch active fuel types
       const { data: fuelTypesData, error: fuelError } = await supabase
         .from('fuel_types')
         .select('id, name, base_price_per_liter')
@@ -67,8 +66,9 @@ export function SystemAnalytics() {
       if (fuelError) throw fuelError;
       setFuelTypes(fuelTypesData || []);
 
-      // 3. Fetch fuel analytics with joins
-      const { data: analytics, error: analyticsError } = await supabase
+      // 3. Fetch fuel analytics (with station & fuel type names via join)
+      //    Using the correct Supabase join syntax: foreign key columns are automatically recognised
+      const { data: analyticsRaw, error: analyticsError } = await supabase
         .from('fuel_analytics')
         .select(`
           id,
@@ -78,43 +78,71 @@ export function SystemAnalytics() {
           total_dispensed,
           digital_dispensed,
           last_updated,
-          station:stations!station_id (name),
-          fuel_type:fuel_types!fuel_type_id (name)
-        `)
-        .order('last_updated', { ascending: false });
+          station:stations(name),
+          fuel_type:fuel_types(name, base_price_per_liter)
+        `);
 
       if (analyticsError) throw analyticsError;
 
-      const formatted: AnalyticsRecord[] = (analytics || []).map((item: any) => ({
-        id: item.id,
-        stationId: item.station_id,
-        stationName: item.station?.name || 'Unknown Station',
-        fuelTypeId: item.fuel_type_id,
-        fuelType: item.fuel_type?.name || 'Unknown Fuel',
-        totalAvailable: item.total_available || 0,
-        totalDispensed: item.total_dispensed || 0,
-        digitalDispensed: item.digital_dispensed || 0,
-        lastUpdated: item.last_updated,
-      }));
-      setAnalyticsData(formatted);
-    } catch (error) {
+      // 4. Build a map of existing analytics for quick lookup
+      const analyticsMap = new Map<string, AnalyticsRecord>();
+      (analyticsRaw || []).forEach((item: any) => {
+        const key = `${item.station_id}|${item.fuel_type_id}`;
+        analyticsMap.set(key, {
+          stationId: item.station_id,
+          stationName: item.station?.name || 'Unknown',
+          fuelTypeId: item.fuel_type_id,
+          fuelTypeName: item.fuel_type?.name || 'Unknown',
+          totalAvailable: item.total_available || 0,
+          totalDispensed: item.total_dispensed || 0,
+          digitalDispensed: item.digital_dispensed || 0,
+          lastUpdated: item.last_updated || new Date().toISOString(),
+        });
+      });
+
+      // 5. Create a complete matrix: every station × every fuel type
+      const completeData: AnalyticsRecord[] = [];
+      for (const station of (stationsData || [])) {
+        for (const fuel of (fuelTypesData || [])) {
+          const key = `${station.id}|${fuel.id}`;
+          const existing = analyticsMap.get(key);
+          if (existing) {
+            completeData.push(existing);
+          } else {
+            // Missing entry – create with zero values and current timestamp
+            completeData.push({
+              stationId: station.id,
+              stationName: station.name,
+              fuelTypeId: fuel.id,
+              fuelTypeName: fuel.name,
+              totalAvailable: 0,
+              totalDispensed: 0,
+              digitalDispensed: 0,
+              lastUpdated: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      setAnalyticsData(completeData);
+    } catch (error: any) {
       console.error('Error loading analytics data:', error);
-      toast.error('Failed to load analytics data');
+      toast.error(`Failed to load analytics: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter analytics based on selections
+  // Filter based on selections
   const filteredAnalytics = analyticsData.filter(item => {
-    const fuelMatch = selectedFuelType === 'All' || item.fuelType === selectedFuelType;
+    const fuelMatch = selectedFuelType === 'All' || item.fuelTypeName === selectedFuelType;
     const stationMatch = selectedStation === 'All' || item.stationId === selectedStation;
     return fuelMatch && stationMatch;
   });
 
-  // Aggregate totals by fuel type
+  // Aggregate totals by fuel type (using all data, not filtered, for global metrics)
   const totalsByFuelType = analyticsData.reduce((acc, item) => {
-    const fuel = item.fuelType;
+    const fuel = item.fuelTypeName;
     if (!acc[fuel]) {
       acc[fuel] = { available: 0, dispensed: 0, digitalDispensed: 0 };
     }
@@ -130,21 +158,21 @@ export function SystemAnalytics() {
     available: data.available,
   }));
 
-  // Chart data for dispensed fuel (only digital)
+  // Chart data for digital dispensed
   const dispensedFuelChartData = Object.entries(totalsByFuelType).map(([fuel, data]) => ({
     name: fuel,
     digital: data.digitalDispensed,
   }));
 
-  // Station‑wise data for selected fuel type (when a specific fuel is chosen)
+  // Station‑wise data (when a specific fuel type is selected)
   const stationWiseData = filteredAnalytics.map(item => ({
-    station: item.stationName.split(' ')[0], // Shortened name
+    station: item.stationName.split(' ')[0], // shortened name
     available: item.totalAvailable,
     dispensed: item.totalDispensed,
     digital: item.digitalDispensed,
   }));
 
-  // Totals for metrics
+  // Global totals
   const totalAvailable = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.available, 0);
   const totalDispensed = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.dispensed, 0);
   const totalDigitalDispensed = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.digitalDispensed, 0);
@@ -155,7 +183,6 @@ export function SystemAnalytics() {
     return ft?.base_price_per_liter || 0;
   };
 
-  // Calculate revenue for a given fuel type and digital volume
   const calculateRevenue = (fuelName: string, liters: number) => {
     return getFuelPrice(fuelName) * liters;
   };
@@ -165,12 +192,11 @@ export function SystemAnalytics() {
   }, 0);
 
   const handleExport = () => {
-    // Simple CSV export example
     const csvRows = [
       ['Station', 'Fuel Type', 'Available (L)', 'Total Dispensed (L)', 'Digital Dispensed (L)', 'Digital %', 'Last Updated'],
       ...filteredAnalytics.map(item => [
         item.stationName,
-        item.fuelType,
+        item.fuelTypeName,
         item.totalAvailable,
         item.totalDispensed,
         item.digitalDispensed,
@@ -189,8 +215,7 @@ export function SystemAnalytics() {
     toast.success('Analytics report exported');
   };
 
-  // Get unique fuel types from data for filter dropdown
-  const uniqueFuelTypes = Array.from(new Set(analyticsData.map(a => a.fuelType))).sort();
+  const uniqueFuelTypes = Array.from(new Set(analyticsData.map(a => a.fuelTypeName))).sort();
 
   if (loading) {
     return (
@@ -436,7 +461,7 @@ export function SystemAnalytics() {
                 <th className="text-right py-3 px-4 text-sm text-gray-600">Digital Dispensed (L)</th>
                 <th className="text-right py-3 px-4 text-sm text-gray-600">Digital %</th>
                 <th className="text-left py-3 px-4 text-sm text-gray-600">Last Updated</th>
-              </tr>
+               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredAnalytics.map((item, idx) => {
@@ -448,11 +473,11 @@ export function SystemAnalytics() {
                     <td className="py-3 px-4 text-sm text-gray-900">{item.stationName}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                        item.fuelType === 'Petrol' ? 'bg-blue-100 text-blue-700' :
-                        item.fuelType === 'Diesel' ? 'bg-green-100 text-green-700' :
+                        item.fuelTypeName === 'Petrol' ? 'bg-blue-100 text-blue-700' :
+                        item.fuelTypeName === 'Diesel' ? 'bg-green-100 text-green-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {item.fuelType}
+                        {item.fuelTypeName}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm text-right text-gray-900">{item.totalAvailable.toLocaleString()}</td>
