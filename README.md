@@ -1,5 +1,5 @@
 
-  # Driver Dashboard Design
+  # QUICKFUEL
 
   This is a code bundle for Driver Dashboard Design. The original project is available at https://www.figma.com/design/6ciwS81VrNxIBrh4cmcdRx/Driver-Dashboard-Design.
 
