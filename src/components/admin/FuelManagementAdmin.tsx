@@ -10,7 +10,7 @@ import { Progress } from '../ui/progress';
 import { Skeleton } from '../ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
-import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Info, X, MapPin } from 'lucide-react';
+import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Info, X, MapPin, Clock } from 'lucide-react';
 
 export function FuelManagementAdmin() {
   const [stations, setStations] = useState<Station[]>([]);
@@ -255,7 +255,7 @@ export function FuelManagementAdmin() {
                 <h4 className="font-semibold mb-2 flex items-center gap-2"><DollarSign className="size-4 text-green-600" /> Pricing</h4>
                 <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
                   <div className="flex justify-between"><span className="text-gray-600">Price per Liter</span><span className="font-bold text-green-700">ETB {selectedFuel.effective_price?.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">Custom Price</span><span>{selectedFuel.custom_price_per_liter ? `ETB ${selectedFuel.custom_price_per_liter.toFixed(2)}` : 'Not set'}</span></div>
+                  {/* <div className="flex justify-between"><span className="text-gray-600">Custom Price</span><span>{selectedFuel.custom_price_per_liter ? `ETB ${selectedFuel.custom_price_per_liter.toFixed(2)}` : 'Not set'}</span></div> */}
                   <div className="flex justify-between"><span className="text-gray-600">Base Price</span><span>ETB {selectedFuel.fuel_type?.base_price_per_liter?.toFixed(2) || '—'}</span></div>
                 </div>
               </div>

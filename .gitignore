@@ -5,3 +5,4 @@
 .env.local
 /supabase
 /reservs
+/src/ReadMeFiles

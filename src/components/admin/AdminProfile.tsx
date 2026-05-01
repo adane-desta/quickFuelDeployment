@@ -97,7 +97,7 @@ export function AdminProfile({ onLogout }: AdminProfileProps) {
             ) : (
               <>
                 {[
-                  { icon: User, label: 'Full Name', value: user?.fullName },
+                  { icon: User, label: 'Full Name', value: user?.full_name },
                   { icon: Mail, label: 'Email', value: user?.email, verified: true },
                   { icon: Phone, label: 'Phone', value: user?.phone, verified: true },
                   { icon: MapPin, label: 'Address', value: user?.address },

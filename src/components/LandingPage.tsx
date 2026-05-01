@@ -1,76 +1,139 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Fuel, Zap, MapPin, Clock, Shield, TrendingUp, Menu, X, ChevronRight, CheckCircle } from 'lucide-react';
+import {
+  Fuel, Zap, MapPin, Clock, Shield, TrendingUp, Menu, X, ChevronRight,
+  CheckCircle, FileText, AlertCircle, Users, Building, CalendarCheck,
+  Timer, Smartphone, CreditCard, Target
+} from 'lucide-react';
 import { Button } from './ui/button';
+import { supabase } from '../lib/supabase/client';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [diagramsOpen, setDiagramsOpen] = useState(false);
+  const [stats, setStats] = useState({
+    totalUsers: 10,
+    totalStations: 7,
+    totalReservations: 23,
+    avgTimeSaved: 56
+  });
 
-  const features = [
+  useEffect(() => {
+    fetchRealStats();
+  }, []);
+
+  const fetchRealStats = async () => {
+    try {
+      // Fetch total users
+      const { count: usersCount } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+
+      // Fetch total stations
+      const { count: stationsCount } = await supabase
+        .from('stations')
+        .select('*', { count: 'exact', head: true });
+
+      // Fetch total reservations
+      const { count: reservationsCount } = await supabase
+        .from('reservations')
+        .select('*', { count: 'exact', head: true });
+
+      setStats({
+        totalUsers: usersCount || 0,
+        totalStations: stationsCount || 0,
+        totalReservations: reservationsCount || 0,
+        avgTimeSaved: 45 // Average minutes saved per reservation
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const problems = [
     {
-      icon: MapPin,
-      title: 'Real-Time Station Locator',
-      description: 'Find nearby fuel stations with live availability and queue information',
-      color: 'bg-blue-500',
+      icon: Timer,
+      title: 'Long Waiting Queues',
+      description: 'Drivers spend hours waiting in fuel station queues, wasting valuable time and fuel',
+      stat: '2-3 hours',
+      color: 'bg-red-500'
+    },
+    {
+      icon: AlertCircle,
+      title: 'Fuel Uncertainty',
+      description: 'No way to know if stations have fuel available before arriving, leading to wasted trips',
+      stat: '40% empty trips',
+      color: 'bg-orange-500'
+    },
+    {
+      icon: Target,
+      title: 'No Reservation System',
+      description: 'First-come-first-serve creates chaos and unfair distribution of limited fuel resources',
+      stat: 'Daily chaos',
+      color: 'bg-yellow-500'
+    }
+  ];
+
+  const solutions = [
+    {
+      icon: Smartphone,
+      title: 'Real-Time Availability',
+      description: 'Check fuel availability at nearby stations instantly before you leave',
+      color: 'bg-blue-500'
+    },
+    {
+      icon: CalendarCheck,
+      title: 'Smart Reservations',
+      description: 'Book your fuel in advance with guaranteed availability and time slots',
+      color: 'bg-green-500'
+    },
+    {
+      icon: CreditCard,
+      title: 'Digital Payments',
+      description: 'Pay securely online and skip cash transactions at the station',
+      color: 'bg-purple-500'
     },
     {
       icon: Clock,
-      title: 'Smart Reservations',
-      description: 'Book your fuel in advance and skip the queue with guaranteed availability',
-      color: 'bg-green-500',
-    },
-    {
-      icon: Zap,
-      title: 'Instant Payments',
-      description: 'Secure payments via Telebirr and Chapa with instant confirmation',
-      color: 'bg-purple-500',
-    },
-    {
-      icon: Shield,
-      title: 'Verified Stations',
-      description: 'All stations are verified and monitored for quality assurance',
-      color: 'bg-orange-500',
-    },
-  ];
-
-  const benefits = [
-    'Save time with real-time queue information',
-    'Guarantee fuel availability with reservations',
-    'Track your fuel spending and history',
-    'Get notifications for price changes',
-    'Access 24/7 customer support',
-    'Earn rewards on every purchase',
+      title: 'Time Slot Management',
+      description: 'Choose your preferred time and avoid peak hours and long queues',
+      color: 'bg-indigo-500'
+    }
   ];
 
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Fuel className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">QuickFuel</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">QuickFuel</span>
             </div>
 
-            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6">
-              <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
-              <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors">How It Works</a>
-              <a href="#benefits" className="text-gray-600 hover:text-gray-900 transition-colors">Benefits</a>
-              <Button onClick={() => navigate('/login')} variant="outline" className="border-gray-300">
+              <a href="#problem" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">Problem</a>
+              <a href="#solution" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">Solution</a>
+              <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">How It Works</a>
+              <button
+                onClick={() => setDiagramsOpen(true)}
+                className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors font-medium"
+              >
+                <FileText className="w-4 h-4" />
+                Diagrams
+              </button>
+              <Button onClick={() => navigate('/login')} variant="outline" className="border-blue-200 hover:border-blue-400">
                 Sign In
               </Button>
-              <Button onClick={() => navigate('/register/driver')} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+              <Button onClick={() => navigate('/login')} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
                 Get Started
               </Button>
             </div>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100"
@@ -80,17 +143,16 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="px-4 py-3 space-y-3">
-              <a href="#features" className="block text-gray-600 hover:text-gray-900 py-2">Features</a>
-              <a href="#how-it-works" className="block text-gray-600 hover:text-gray-900 py-2">How It Works</a>
-              <a href="#benefits" className="block text-gray-600 hover:text-gray-900 py-2">Benefits</a>
-              <Button onClick={() => navigate('/login')} variant="outline" className="w-full border-gray-300">
+              <a href="#problem" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">Problem</a>
+              <a href="#solution" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">Solution</a>
+              <a href="#how-it-works" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">How It Works</a>
+              <Button onClick={() => navigate('/login')} variant="outline" className="w-full">
                 Sign In
               </Button>
-              <Button onClick={() => navigate('/register/driver')} className="w-full bg-gradient-to-r from-blue-500 to-purple-600">
+              <Button onClick={() => navigate('/login')} className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
                 Get Started
               </Button>
             </div>
@@ -99,77 +161,136 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-              Skip the Queue,
-              <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Fuel Up Faster
+      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        <div className="max-w-7xl mx-auto relative">
+          <div className="text-center max-w-4xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-6">
+              <Zap className="w-4 h-4" />
+              The First Smart Fuel Reservation Platform in Jimma town
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              End Fuel Queue
+              <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Frustration Forever
               </span>
             </h1>
-            <p className="text-lg sm:text-xl text-gray-600 mb-8">
-              QuickFuel helps you locate fuel stations with real-time availability, book your fuel in advance, and skip the long queues. Save time and fuel smarter.
+            <p className="text-xl text-gray-600 mb-10 leading-relaxed">
+              Reserve your fuel online, skip the hours-long queues, and fuel up in minutes.
+              <span className="block mt-2 font-semibold text-gray-800">QuickFuel brings order to Jimma's fuel distribution system.</span>
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                onClick={() => navigate('/register/driver')}
-                size="lg"
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-lg px-8 py-6"
-              >
-                Start Saving Time
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </Button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <Button
                 onClick={() => navigate('/login')}
                 size="lg"
-                variant="outline"
-                className="border-2 border-gray-300 text-lg px-8 py-6"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-10 py-7 shadow-xl hover:shadow-2xl transition-all"
               >
-                Sign In
+                Reserve Fuel Now
+                <ChevronRight className="w-5 h-5 ml-2" />
+              </Button>
+              <Button
+                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                size="lg"
+                variant="outline"
+                className="border-2 border-gray-300 hover:border-blue-400 text-lg px-10 py-7"
+              >
+                See How It Works
               </Button>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-12 max-w-2xl mx-auto">
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900">800K+</p>
-                <p className="text-sm text-gray-600 mt-1">Users</p>
+            {/* Live Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-blue-100">
+                <Users className="w-8 h-8 text-blue-600 mb-2 mx-auto" />
+                <p className="text-3xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}+</p>
+                <p className="text-sm text-gray-600 mt-1">Active Users</p>
               </div>
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900">500+</p>
-                <p className="text-sm text-gray-600 mt-1">Stations</p>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-purple-100">
+                <Building className="w-8 h-8 text-purple-600 mb-2 mx-auto" />
+                <p className="text-3xl font-bold text-gray-900">{stats.totalStations}+</p>
+                <p className="text-sm text-gray-600 mt-1">Partner Stations</p>
               </div>
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900">2M+</p>
-                <p className="text-sm text-gray-600 mt-1">Reservations</p>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
+                <CalendarCheck className="w-8 h-8 text-green-600 mb-2 mx-auto" />
+                <p className="text-3xl font-bold text-gray-900">{stats.totalReservations.toLocaleString()}+</p>
+                <p className="text-sm text-gray-600 mt-1">Reservations Made</p>
+              </div>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-orange-100">
+                <Timer className="w-8 h-8 text-orange-600 mb-2 mx-auto" />
+                <p className="text-3xl font-bold text-gray-900">{stats.avgTimeSaved} min</p>
+                <p className="text-sm text-gray-600 mt-1">Avg Time Saved</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      {/* Problem Section */}
+      <section id="problem" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Why Choose QuickFuel?</h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Experience the future of fuel management with our comprehensive platform
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-medium mb-4">
+              <AlertCircle className="w-4 h-4" />
+              The Problem We're Solving
+            </div>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Jimma's Fuel Queue Crisis</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Every day, millions of Ethiopians waste precious hours waiting in fuel queues.
+              <span className="block mt-2 font-semibold text-red-600">This has to stop.</span>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            {problems.map((problem, index) => (
+              <div key={index} className="relative group">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-gray-200 hover:border-red-300 transition-all shadow-lg hover:shadow-xl h-full">
+                  <div className={`w-16 h-16 ${problem.color} rounded-2xl flex items-center justify-center mb-6 shadow-lg`}>
+                    <problem.icon className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">{problem.title}</h3>
+                  <p className="text-gray-600 mb-4 leading-relaxed">{problem.description}</p>
+                  <div className="inline-flex items-center px-4 py-2 bg-red-50 text-red-700 rounded-lg font-bold">
+                    {problem.stat}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-3xl p-10 border-2 border-red-200">
+            <div className="max-w-3xl mx-auto text-center">
+              <h3 className="text-3xl font-bold text-gray-900 mb-4">The Real Cost</h3>
+              <p className="text-lg text-gray-700 leading-relaxed">
+                Ethiopian drivers collectively lose <span className="font-bold text-red-600">millions of hours</span> every month in fuel queues.
+                That's time away from family, work, and life. Plus the wasted fuel idling in queues contributes to pollution and financial loss.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Solution Section */}
+      <section id="solution" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium mb-4">
+              <CheckCircle className="w-4 h-4" />
+              Our Solution
+            </div>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">QuickFuel: The Smart Way</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              A digital platform that brings fairness, efficiency, and convenience to fuel distribution
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="p-6 rounded-2xl border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all"
-              >
-                <div className={`w-12 h-12 ${feature.color} rounded-xl flex items-center justify-center mb-4`}>
-                  <feature.icon className="w-6 h-6 text-white" />
+            {solutions.map((solution, index) => (
+              <div key={index} className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-100 hover:border-blue-300">
+                <div className={`w-14 h-14 ${solution.color} rounded-xl flex items-center justify-center mb-6 shadow-md`}>
+                  <solution.icon className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-600">{feature.description}</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">{solution.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{solution.description}</p>
               </div>
             ))}
           </div>
@@ -177,46 +298,49 @@ export function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Three simple steps to save time and avoid queues
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Three simple steps to skip the queue and fuel up fast
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
               {
-                step: '1',
-                title: 'Find a Station',
-                description: 'Browse nearby fuel stations with real-time availability and queue status',
+                step: '01',
+                title: 'Find & Check',
+                description: 'Search nearby fuel stations and check real-time fuel availability on your phone',
                 icon: MapPin,
+                color: 'from-blue-500 to-blue-600'
               },
               {
-                step: '2',
-                title: 'Make a Reservation',
-                description: 'Select your fuel type, quantity, and time slot. Pay securely online',
-                icon: Clock,
+                step: '02',
+                title: 'Reserve & Pay',
+                description: 'Select your fuel type, quantity, and time slot. Pay securely via Telebirr or Chapa',
+                icon: CreditCard,
+                color: 'from-purple-500 to-purple-600'
               },
               {
-                step: '3',
-                title: 'Collect Your Fuel',
-                description: 'Show your QR code or pickup code at the station and fuel up instantly',
+                step: '03',
+                title: 'Show & Fuel',
+                description: 'Arrive at your time slot, show your QR code, and fuel up in minutes—no waiting!',
                 icon: Fuel,
+                color: 'from-green-500 to-green-600'
               },
             ].map((item, index) => (
               <div key={index} className="relative">
-                <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6">
-                    <item.icon className="w-8 h-8 text-white" />
+                <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl p-10 shadow-xl hover:shadow-2xl transition-all border border-gray-200 h-full">
+                  <div className={`w-20 h-20 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center mb-8 shadow-lg`}>
+                    <item.icon className="w-10 h-10 text-white" />
                   </div>
-                  <div className="absolute -top-4 -left-4 w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                  <div className="absolute -top-6 -left-6 w-16 h-16 bg-gradient-to-br from-gray-900 to-gray-700 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-xl">
                     {item.step}
                   </div>
-                  <h3 className="text-2xl font-semibold text-gray-900 mb-3">{item.title}</h3>
-                  <p className="text-gray-600">{item.description}</p>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">{item.title}</h3>
+                  <p className="text-gray-600 text-lg leading-relaxed">{item.description}</p>
                 </div>
               </div>
             ))}
@@ -224,99 +348,24 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section id="benefits" className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
-                Experience the Benefits
-              </h2>
-              <p className="text-lg text-gray-600 mb-8">
-                Join thousands of satisfied drivers who have transformed their fueling experience with QuickFuel.
-              </p>
-
-              <div className="space-y-4">
-                {benefits.map((benefit, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                    </div>
-                    <p className="text-gray-700">{benefit}</p>
-                  </div>
-                ))}
-              </div>
-
-              <Button
-                onClick={() => navigate('/register/driver')}
-                size="lg"
-                className="mt-8 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-              >
-                Get Started Today
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </Button>
-            </div>
-
-            <div className="relative">
-              <div className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-3xl p-8 lg:p-12">
-                <div className="bg-white rounded-2xl p-6 shadow-lg mb-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Time Saved This Month</p>
-                      <p className="text-2xl font-bold text-gray-900">4.5 hours</p>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full w-3/4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" />
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-6 shadow-lg">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                      <Fuel className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Money Saved</p>
-                      <p className="text-2xl font-bold text-gray-900">ETB 2,350</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600">Through smart fuel planning</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Ready to Transform Your Fueling Experience?
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+        <div className="max-w-4xl mx-auto text-center relative">
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+            Ready to Skip the Queue?
           </h2>
-          <p className="text-lg text-blue-100 mb-8">
-            Join QuickFuel today and never wait in line again
+          <p className="text-xl text-blue-100 mb-10">
+            Join thousands of smart Ethiopians who have already said goodbye to fuel queue frustration
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              onClick={() => navigate('/register/driver')}
-              size="lg"
-              className="bg-white text-purple-600 hover:bg-gray-100 text-lg px-8 py-6"
-            >
-              Sign Up Now
-              <ChevronRight className="w-5 h-5 ml-2" />
-            </Button>
+          <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <Button
               onClick={() => navigate('/login')}
               size="lg"
-              variant="outline"
-              className="border-2 border-white text-white hover:bg-white/10 text-lg px-8 py-6"
+              className="bg-white text-purple-600 hover:bg-gray-50 text-xl px-12 py-8 shadow-2xl hover:shadow-3xl transition-all"
             >
-              Already Have an Account?
+              Start Saving Time Now
+              <ChevronRight className="w-6 h-6 ml-2" />
             </Button>
           </div>
         </div>
@@ -325,7 +374,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
@@ -333,44 +382,45 @@ export function LandingPage() {
                 </div>
                 <span className="text-xl font-bold">QuickFuel</span>
               </div>
-              <p className="text-gray-400 text-sm">
-                Making fuel management smarter, faster, and more convenient for everyone.
+              <p className="text-gray-400 text-sm leading-relaxed">
+                Revolutionizing fuel distribution in Ethiopia through smart technology and fair allocation.
               </p>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#features" className="hover:text-white">Features</a></li>
-                <li><a href="#how-it-works" className="hover:text-white">How It Works</a></li>
-                <li><a href="#benefits" className="hover:text-white">Benefits</a></li>
+              <h3 className="font-bold mb-4 text-lg">Product</h3>
+              <ul className="space-y-3 text-sm text-gray-400">
+                <li><a href="#problem" className="hover:text-white transition-colors">Problem</a></li>
+                <li><a href="#solution" className="hover:text-white transition-colors">Solution</a></li>
+                <li><a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a></li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">About Us</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
+              <h3 className="font-bold mb-4 text-lg">Company</h3>
+              <ul className="space-y-3 text-sm text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-4">Legal</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-white">Cookie Policy</a></li>
+              <h3 className="font-bold mb-4 text-lg">Legal</h3>
+              <ul className="space-y-3 text-sm text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Support</a></li>
               </ul>
             </div>
           </div>
 
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2026 QuickFuel. All rights reserved.</p>
+          <div className="border-t border-gray-800 mt-10 pt-8 text-center text-sm text-gray-400">
+            <p>&copy; 2026 QuickFuel Ethiopia. All rights reserved.</p>
           </div>
         </div>
       </footer>
+
     </div>
   );
 }

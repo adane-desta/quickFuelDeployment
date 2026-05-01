@@ -4,7 +4,6 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Plus, Edit2, Save, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -117,30 +116,9 @@ export function CarClassManagement() {
     <div className="p-4 lg:p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Car Classes & Fuel Limits</h1>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-green-600"><Plus className="w-4 h-4 mr-1" /> Add Class</Button>
-          </DialogTrigger>
-          <DialogContent
-            className="sm:max-w-md"
-            onPointerDownOutside={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>Add New Car Class</DialogTitle>
-              <DialogDescription>Enter the details for the new vehicle class.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div><Label>Name *</Label><Input value={newClass.name} onChange={e => setNewClass({...newClass, name: e.target.value})} /></div>
-              <div><Label>Description</Label><Input value={newClass.description} onChange={e => setNewClass({...newClass, description: e.target.value})} /></div>
-              <div><Label>Weekly Fuel Limit (Liters) *</Label><Input type="number" value={newClass.weekly_fuel_limit} onChange={e => setNewClass({...newClass, weekly_fuel_limit: parseInt(e.target.value)})} /></div>
-              <Button onClick={handleAdd} disabled={saving} className="w-full">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Add Class
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsAddOpen(true)} className="bg-green-600">
+          <Plus className="w-4 h-4 mr-1" /> Add Class
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -182,6 +160,92 @@ export function CarClassManagement() {
           </Card>
         ))}
       </div>
+
+      {/* Custom Add Class Modal (styled like OperatorManagement) */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header with gradient */}
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Plus className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Add New Car Class</h2>
+                  <p className="text-sm text-green-100">Define a vehicle category & fuel limit</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-white" />
+              </button>
+            </div>
+
+            {/* Form fields */}
+            <div className="p-6 space-y-4">
+              <div>
+                <Label>Class Name *</Label>
+                <Input
+                  value={newClass.name}
+                  onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
+                  placeholder="e.g., Sedan, SUV, Mini-Bus"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Input
+                  value={newClass.description}
+                  onChange={(e) => setNewClass({ ...newClass, description: e.target.value })}
+                  placeholder="Optional description"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Weekly Fuel Limit (Liters) *</Label>
+                <Input
+                  type="number"
+                  value={newClass.weekly_fuel_limit}
+                  onChange={(e) => setNewClass({ ...newClass, weekly_fuel_limit: parseInt(e.target.value) || 0 })}
+                  placeholder="e.g., 50"
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-900">
+                <p className="font-medium mb-1">About fuel limits:</p>
+                <ul className="text-xs space-y-1 text-blue-800">
+                  <li>• This limit applies per vehicle per week</li>
+                  <li>• Used to restrict over‑consumption</li>
+                  <li>• Can be changed later</li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={handleAdd}
+                  disabled={saving}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                  Add Class
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddOpen(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
