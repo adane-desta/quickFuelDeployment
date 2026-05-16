@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CreditCard, Smartphone, Check, AlertCircle, Loader2 } from 'lucide-react';
-import { reservationService } from '../../lib/supabase/database-advanced';
+import { supabase } from '../../lib/supabase/client';
+import { useAuth } from '../../contexts/AuthContext';
 import { notifications, notifyError } from '../../lib/utils/notifications';
 import type { PaymentMethod } from '../../types/advanced';
 import { Card } from '../ui/card';
@@ -22,39 +23,53 @@ export function PaymentProcessor({
   onPaymentSuccess,
   onPaymentCancel,
 }: PaymentProcessorProps) {
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('Telebirr');
+  const { user } = useAuth();
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('Chapa');
   const [processing, setProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const paymentMethods = [
-    { id: 'Telebirr' as PaymentMethod, name: 'Telebirr', icon: <Smartphone className="w-6 h-6 text-orange-600" />, description: 'Pay using Telebirr mobile money', badge: 'Popular' },
-    { id: 'Chapa' as PaymentMethod, name: 'Chapa', icon: <CreditCard className="w-6 h-6 text-blue-600" />, description: 'Pay using Chapa payment gateway', badge: 'Fast' },
+    {
+      id: 'Chapa' as PaymentMethod,
+      name: 'Chapa',
+      icon: <CreditCard className="w-6 h-6 text-blue-600" />,
+      description: 'Pay using Chapa payment gateway',
+      badge: 'Recommended',
+    },
+    // Telebirr would require separate integration; can be added later
   ];
 
   const handlePayment = async () => {
+    if (!user) return;
     setProcessing(true);
+
     try {
-      // Simulate payment processing (1-2 seconds)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Call edge function to create Chapa payment link
+      const { data, error } = await supabase.functions.invoke('create-chapa-payment', {
+        body: {
+          reservationId,
+          amount,
+          email: user.email,
+          name: user.full_name,
+          phone: user.phone,
+        },
+      });
 
-      // Mock payment success (always success for demo)
-      const transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      if (error) throw error;
+      if (!data.checkout_url) throw new Error('No checkout URL received');
 
-      const success = await reservationService.confirmPayment(reservationId, transactionId);
-      if (success) {
-        setPaymentSuccess(true);
-        notifications.payment.success();
-        setTimeout(() => {
-          onPaymentSuccess();
-        }, 1500);
-      } else {
-        throw new Error('Failed to confirm payment in database');
-      }
+      // Redirect to Chapa payment page
+      window.location.href = data.checkout_url;
     } catch (error: any) {
-      notifyError('Payment failed', error);
+      notifyError('Payment initiation failed', error);
       setProcessing(false);
     }
   };
+
+  // This component will be unmounted on redirect, so we don't need to handle success here.
+  // The `onPaymentSuccess` callback will be called by the parent when the user returns
+  // after a successful payment (via URL parameter or polling).
+  // For simplicity, we rely on the parent component to check the URL and call onPaymentSuccess.
 
   if (paymentSuccess) {
     return (
@@ -129,20 +144,8 @@ export function PaymentProcessor({
               <li>Click "Pay ETB {amount.toFixed(2)}" button below</li>
               <li>You'll be redirected to {selectedMethod} payment page</li>
               <li>Complete the payment securely</li>
-              <li>You'll receive your pickup code immediately</li>
+              <li>You'll be redirected back to QuickFuel with your pickup code</li>
             </ol>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-4 bg-amber-50 border-amber-200">
-        <div className="flex gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-amber-900">
-            <p className="font-medium mb-1">Demo Mode</p>
-            <p className="text-amber-800">
-              This is a mock payment. No real money will be charged. In production, this would integrate with actual {selectedMethod} API.
-            </p>
           </div>
         </div>
       </Card>
@@ -152,7 +155,7 @@ export function PaymentProcessor({
           {processing ? (
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Processing Payment...
+              Redirecting to {selectedMethod}...
             </>
           ) : (
             <>
