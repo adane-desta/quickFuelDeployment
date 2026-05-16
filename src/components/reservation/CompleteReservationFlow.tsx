@@ -14,6 +14,7 @@ import { TimeSlotSelector } from './TimeSlotSelector';
 import { FuelTypeSelector } from './FuelTypeSelector';
 import { PaymentProcessor } from './PaymentProcessor';
 import { ReservationConfirmation } from './ReservationConfirmation';
+import { useSearchParams } from 'react-router';
 
 const STEPS = [
   { id: 1, name: 'Station', description: 'Select fuel station' },
@@ -24,11 +25,15 @@ const STEPS = [
 ];
 
 interface CompleteReservationFlowProps {
-  station?: Station; // pre-selected station
+  station: Station; // pre-selected station
   onClose?: () => void;
 }
 
 export function CompleteReservationFlow({ station: initialStation, onClose }: CompleteReservationFlowProps) {
+  
+  const [searchParams] = useSearchParams();
+  const stationId = searchParams.get("stationId");
+  
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(initialStation ? 2 : 1);
@@ -72,7 +77,14 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-  }, [user, currentStep , reservationId]);
+    if (!initialStation && stationId) {
+      // fetch station details from Supabase
+      supabase.from("stations").select("*").eq("id", stationId).single().then(({ data }) => {
+        if (data) setSelectedStation(data);
+      });
+    }
+
+  }, [user, currentStep , reservationId, stationId, initialStation]);
   
 
   const handleStationSelect = (station: Station) => {
@@ -161,7 +173,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
             <h2 className="text-gray-900">Reserve Fuel</h2>
             <p className="text-sm text-gray-600">Complete your reservation</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={onClose ? onClose : () => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <X className="w-6 h-6 text-gray-600" />
           </button>
         </div>
@@ -260,7 +272,7 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
             <ReservationConfirmation
               reservationId={reservationId}
               onViewReservations={() => {
-                onClose();
+                onClose() ? onClose : () => navigate(-1);
                 navigate('/driver/reservations');
               }}
               onStartOver={handleStartOver}
