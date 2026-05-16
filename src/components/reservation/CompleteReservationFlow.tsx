@@ -31,12 +31,22 @@ interface CompleteReservationFlowProps {
 
 export function CompleteReservationFlow({ station: initialStation, onClose }: CompleteReservationFlowProps) {
   
-  const [searchParams] = useSearchParams();
-  const stationId = searchParams.get("stationId");
-  
+
+// Inside CompleteReservationFlow component, add these state initializations and effects
+
+const [searchParams] = useSearchParams();
+const urlReservationId = searchParams.get('reservationId');
+const urlStationId = searchParams.get('stationId');
+const isPaymentSuccess = searchParams.get('payment') === 'success';
+
+
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(initialStation ? 2 : 1);
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (initialStation) return 2;
+    if (isPaymentSuccess && urlReservationId) return 5;
+    return 1;
+  });
   const [creating, setCreating] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(initialStation);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -77,16 +87,40 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    if (!initialStation && stationId) {
-      // fetch station details from Supabase
-      supabase.from("stations").select("*").eq("id", stationId).single().then(({ data }) => {
-        if (data) setSelectedStation(data);
-      });
-    }
 
-  }, [user, currentStep , reservationId, stationId, initialStation]);
+  }, [user, currentStep , reservationId]);
   
+  // Set reservationId from URL if present
+useEffect(() => {
+  if (urlReservationId && !reservationId) {
+    setReservationId(urlReservationId);
+  }
+}, [urlReservationId, reservationId]);
 
+// If payment success and we have reservationId, go to step 5
+useEffect(() => {
+  if (isPaymentSuccess && reservationId) {
+    // Optionally verify that the reservation is actually confirmed
+    const checkReservation = async () => {
+      const { data } = await supabase
+        .from('reservations')
+        .select('status, payment_status')
+        .eq('id', reservationId)
+        .single();
+      if (data && (data.status === 'confirmed' || data.payment_status === 'paid')) {
+        setCurrentStep(5);
+        // Clean URL to prevent re-triggering on rerenders
+        window.history.replaceState({}, '', window.location.pathname);
+      } else {
+        // If not confirmed yet, you could poll or show a loading state
+        // For simplicity, proceed to step 5 anyway (webhook will update later)
+        setCurrentStep(5);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    };
+    checkReservation();
+  }
+}, [isPaymentSuccess, reservationId]);
   const handleStationSelect = (station: Station) => {
     setSelectedStation(station);
     setCurrentStep(2);
