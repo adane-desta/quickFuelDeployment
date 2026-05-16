@@ -2,11 +2,11 @@
 
 **A Smart Fuel Reservation System for Jimma town**
 
+
 QuickFuel is a comprehensive web application that solves the critical fuel shortage and queue management problem in Jimma town by enabling drivers to reserve fuel in advance, view real-time station availability, and skip long waiting lines.
 
----
-
 ## 📋 Table of Contents
+
 
 - [Problem Statement](#-problem-statement)
 - [Solution](#-solution)
@@ -578,3 +578,4 @@ If you find QuickFuel useful, please consider giving it a star ⭐ on GitHub!
 ---
 
 **Built with ❤️ to solve Ethiopia's fuel crisis**
+
