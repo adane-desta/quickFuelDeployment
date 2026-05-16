@@ -39,6 +39,9 @@ export const router = createBrowserRouter([
     path: '/admin/*',
     Component: AdminLayout,
   },
-
+  {
+    path: '/reservation',
+    Component: CompleteReservationFlow
+  }
 
 ]);
