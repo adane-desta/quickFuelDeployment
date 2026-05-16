@@ -16,13 +16,7 @@ import { PaymentProcessor } from './PaymentProcessor';
 import { ReservationConfirmation } from './ReservationConfirmation';
 import { useSearchParams } from 'react-router';
 
-const STEPS = [
-  { id: 1, name: 'Station', description: 'Select fuel station' },
-  { id: 2, name: 'Time Slot', description: 'Choose date & time' },
-  { id: 3, name: 'Fuel', description: 'Select fuel type & quantity' },
-  { id: 4, name: 'Payment', description: 'Complete payment' },
-  { id: 5, name: 'Confirmation', description: 'Get pickup code' },
-];
+
 
 interface CompleteReservationFlowProps {
   station: Station; // pre-selected station
@@ -31,6 +25,13 @@ interface CompleteReservationFlowProps {
 
 export function CompleteReservationFlow({ station: initialStation, onClose }: CompleteReservationFlowProps) {
   
+  const STEPS = [
+    { id: 1, name: 'Station', description: 'Select fuel station' },
+    { id: 2, name: 'Time Slot', description: 'Choose date & time' },
+    { id: 3, name: 'Fuel', description: 'Select fuel type & quantity' },
+    { id: 4, name: 'Payment', description: 'Complete payment' },
+    { id: 5, name: 'Confirmation', description: 'Get pickup code' },
+  ];
 
 // Inside CompleteReservationFlow component, add these state initializations and effects
 

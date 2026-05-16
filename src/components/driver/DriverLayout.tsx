@@ -104,7 +104,7 @@ export function DriverLayout() {
       const stationAvailableFuels: Record<string, string[]> = {};
       (inventoryData || []).forEach(item => {
         const stationId = item.station_id;
-        const fuelName = item.fuel_type?.[0]?.name;
+        const fuelName = item.fuel_type?.name;
         if (item.is_available && fuelName) {
           if (!stationAvailableFuels[stationId]) stationAvailableFuels[stationId] = [];
           stationAvailableFuels[stationId].push(fuelName);
