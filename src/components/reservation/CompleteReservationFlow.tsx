@@ -64,7 +64,15 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
     if (contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
-  }, [user, currentStep]);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success' && reservationId) {
+      handlePaymentSuccess();
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+  }, [user, currentStep , reservationId]);
   
 
   const handleStationSelect = (station: Station) => {
