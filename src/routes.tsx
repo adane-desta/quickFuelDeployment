@@ -6,6 +6,9 @@ import { DriverLayout } from './components/driver/DriverLayout';
 import { OperatorLayout } from './components/operator/OperatorLayout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { OwnerLayout } from './components/station_owner/OwnerLayout';
+import { CompleteReservationFlow } from './components/reservation/CompleteReservationFlow';
+
+
 
 export const router = createBrowserRouter([
   {
@@ -36,4 +39,6 @@ export const router = createBrowserRouter([
     path: '/admin/*',
     Component: AdminLayout,
   },
+
+
 ]);
