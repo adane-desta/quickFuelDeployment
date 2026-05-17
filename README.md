@@ -234,7 +234,7 @@ QuickFuel follows a **3-tier architecture**:
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/quickfuel.git
+git clone https://github.com/adane-desta/quickfueldeployment.git
 cd quickfuel
 ```
 
@@ -253,11 +253,6 @@ pnpm install
 # Create .env file in root directory
 cp .env.example .env
 ```
-
-Edit `.env` with your Supabase credentials:
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 5. **Run the development server**
@@ -276,26 +271,6 @@ Run the SQL migrations in your Supabase SQL Editor:
 3. **Create indexes** for performance
 4. **Seed initial data** (optional)
 
----
-
-## 🔐 Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-
-# Payment Gateway (Optional - for production)
-VITE_PAYMENT_GATEWAY_KEY=your-payment-gateway-key
-
-# Application Settings
-VITE_APP_NAME=QuickFuel
-VITE_API_BASE_URL=https://api.quickfuel.app
-```
-
-**⚠️ Important**: Never commit `.env` to version control. Add it to `.gitignore`.
 
 ---
 
@@ -555,9 +530,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 For issues, questions, or feature requests:
 
-- **GitHub Issues**: [https://github.com/yourusername/quickfuel/issues](https://github.com/yourusername/quickfuel/issues)
-- **Email**: support@quickfuel.app
-- **Documentation**: [https://docs.quickfuel.app](https://docs.quickfuel.app)
+- **GitHub Issues**: [https://github.com/adane-desta/quickfueldeployment/issues](https://github.com/yourusername/quickfuel/issues)
+- **Email**: addonegn@gmail.com
+
 
 ---
 
@@ -577,5 +552,4 @@ If you find QuickFuel useful, please consider giving it a star ⭐ on GitHub!
 
 ---
 
-**Built with ❤️ to solve Ethiopia's fuel crisis**
 
