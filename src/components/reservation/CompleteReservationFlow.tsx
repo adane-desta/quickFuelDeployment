@@ -23,7 +23,7 @@ interface CompleteReservationFlowProps {
   onClose?: () => void;
 }
 
-export function CompleteReservationFlow({ station: initialStation, onClose }: CompleteReservationFlowProps) {
+export function CompleteReservationFlow({ station: initialStation = null, onClose, }:  Partial<CompleteReservationFlowProps>) {
   
   const STEPS = [
     { id: 1, name: 'Station', description: 'Select fuel station' },
@@ -33,12 +33,14 @@ export function CompleteReservationFlow({ station: initialStation, onClose }: Co
     { id: 5, name: 'Confirmation', description: 'Get pickup code' },
   ];
 
-// Inside CompleteReservationFlow component, add these state initializations and effects
-
+  
 const [searchParams] = useSearchParams();
 const urlReservationId = searchParams.get('reservationId');
 const urlStationId = searchParams.get('stationId');
 const isPaymentSuccess = searchParams.get('payment') === 'success';
+
+const paymentStatus = searchParams.get('payment');
+const reservationIdFromUrl = searchParams.get('reservationId');
 
 
   const navigate = useNavigate();
@@ -82,10 +84,18 @@ const isPaymentSuccess = searchParams.get('payment') === 'success';
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('payment') === 'success' && reservationId) {
-      handlePaymentSuccess();
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname);
+    if (
+      paymentStatus === 'success' &&
+      reservationIdFromUrl
+    ) {
+      setReservationId(reservationIdFromUrl);
+      setCurrentStep(5);
+    
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname
+      );
     }
 
 
@@ -223,7 +233,7 @@ useEffect(() => {
               </Button>
             )}
             <div className="flex-1">
-              <h1 className="text-xl font-bold">{STEPS[currentStep - 1].name}</h1>
+              <h1 className="text-xl font-bold">{STEPS[currentStep - 1]?.name}</h1>
               <p className="text-sm text-gray-600">{STEPS[currentStep - 1].description}</p>
             </div>
           </div>
