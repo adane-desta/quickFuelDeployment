@@ -21,7 +21,7 @@ export function ConfirmationScreen({ reservationData, onClose }: ConfirmationScr
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  const smsMessage = `QuickFuel Reservation Confirmed!\n\nStation: ${reservationData.station.name}\nDate: ${formatDate(reservationData.date)}\nTime: ${reservationData.timeSlot}\nFuel: ${reservationData.fuelType} - ${reservationData.quantity}L\n\nPickup Code: ${numericCode}\n\nShow this code at the station.`;
+  // const smsMessage = `QuickFuel Reservation Confirmed!\n\nStation: ${reservationData.station.name}\nDate: ${formatDate(reservationData.date)}\nTime: ${reservationData.timeSlot}\nFuel: ${reservationData.fuelType} - ${reservationData.quantity}L\n\nPickup Code: ${numericCode}\n\nShow this code at the station.`;
 
   return (
     <div className="space-y-6">
