@@ -289,7 +289,7 @@ export function ProfileScreen() {
                 <div className="flex items-center gap-3">
                   <MapPin className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-gray-900 text-sm">{station.name}</p>
+                    <p className="text-gray-900 text-sm">{station?.name}</p>
                     <p className="text-xs text-gray-500">{station.distance} away</p>
                   </div>
                 </div>

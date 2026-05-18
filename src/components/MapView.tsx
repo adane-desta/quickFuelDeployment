@@ -61,7 +61,7 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
       const hasFuel = station.availableFuels && station.availableFuels.length > 0;
       const popupContent = `
         <div class="p-2 min-w-[220px]">
-          <h3 class="font-bold text-gray-900">${station.name}</h3>
+          <h3 class="font-bold text-gray-900">${station?.name}</h3>
           <p class="text-sm text-gray-600">${station.address || 'Address not available'}</p>
           <p class="text-sm text-gray-600 mt-1">Distance: ${station.distance ? station.distance.toFixed(1) : '?'} km</p>
           <p class="text-sm text-gray-600">Travel time: ~${station.travelTime || '?'} min</p>
