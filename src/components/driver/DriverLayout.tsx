@@ -144,7 +144,7 @@ export function DriverLayout() {
   const filteredStations = stations.filter(station => {
     const query = searchQuery.toLowerCase();
     return (
-      station.name.toLowerCase().includes(query) ||
+      station?.name.toLowerCase().includes(query) ||
       (station.address || '').toLowerCase().includes(query) ||
       station.availableFuels.some(fuel => fuel.toLowerCase().includes(query))
     );

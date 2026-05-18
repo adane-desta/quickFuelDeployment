@@ -38,7 +38,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="text-gray-900 mb-1">{station.name}</h3>
+          <h3 className="text-gray-900 mb-1">{station?.name}</h3>
           <div className="flex items-center gap-1.5 text-gray-600">
             <MapPin className="w-4 h-4" />
             <span className="text-sm">{station.distance?.toFixed(1) || '?'} km away</span>
