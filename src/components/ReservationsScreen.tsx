@@ -178,7 +178,7 @@ export function ReservationsScreen() {
                     <h3 className="text-gray-900 mb-1">{reservation.station}</h3>
                     <div className="flex items-center gap-1.5 text-gray-600">
                       <MapPin className="w-4 h-4" />
-                      <span className="text-sm">{reservation.distance} km away</span>
+                      <span className="text-sm">{reservation?.distance} km away</span>
                     </div>
                   </div>
                   <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
