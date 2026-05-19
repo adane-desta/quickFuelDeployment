@@ -112,7 +112,7 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
         if (drivers) {
           const carClassIds = drivers.map(d => d.car_class_id).filter(Boolean);
           const { data: carClasses } = await supabase.from('car_classes').select('id, name').in('id', carClassIds);
-          const carClassNameMap = new Map(carClasses?.map(cc => [cc.id, cc.name]) || []);
+          const carClassNameMap = new Map(carClasses?.map(cc => [cc.id, cc?.name]) || []);
           drivers.forEach(driver => {
             const className = carClassNameMap.get(driver.car_class_id) || 'Regular';
             driverDetailsMap.set(driver.id, {

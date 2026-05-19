@@ -193,7 +193,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {dashboardData.pendingStationsList.map(s => (
                   <div key={s.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg border border-yellow-200">
                     <div>
-                      <p className="text-sm text-gray-900">{s.name}</p>
+                      <p className="text-sm text-gray-900">{s?.name}</p>
                       <p className="text-xs text-gray-500">{s.address}</p>
                     </div>
                     <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Pending</span>
@@ -270,9 +270,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="flex items-center gap-4">
               {dashboardData.fuelPrices.length > 0 ? (
                 dashboardData.fuelPrices.map(fp => (
-                  <div key={fp.name} className="flex-1 p-3 bg-blue-50 rounded-lg text-center">
+                  <div key={fp?.name} className="flex-1 p-3 bg-blue-50 rounded-lg text-center">
                     <p className="text-lg text-blue-700">ETB {fp.base_price_per_liter.toFixed(2)}</p>
-                    <p className="text-xs text-gray-500">{fp.name} /L</p>
+                    <p className="text-xs text-gray-500">{fp?.name} /L</p>
                   </div>
                 ))
               ) : (

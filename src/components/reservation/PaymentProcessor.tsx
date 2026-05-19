@@ -122,7 +122,7 @@ export function PaymentProcessor({
                     <div className="flex items-center gap-3 mb-1">
                       {method.icon}
                       <Label htmlFor={method.id} className="font-semibold text-base cursor-pointer">
-                        {method.name}
+                        {method?.name}
                       </Label>
                       {method.badge && <Badge variant="secondary" className="text-xs">{method.badge}</Badge>}
                     </div>

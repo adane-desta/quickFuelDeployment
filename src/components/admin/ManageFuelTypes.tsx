@@ -61,7 +61,7 @@ export function ManageFuelTypes() {
   const handleEdit = (fuel: FuelType) => {
     setEditingFuel(fuel);
     setFormData({
-      name: fuel.name,
+      name: fuel?.name,
       code: fuel.code,
       base_price_per_liter: fuel.base_price_per_liter.toString(),
       color_code: fuel.color_code || '#3B82F6',
@@ -160,7 +160,7 @@ export function ManageFuelTypes() {
                     className="size-4 rounded-full"
                     style={{ backgroundColor: fuel.color_code || '#3B82F6' }}
                   />
-                  <h3 className="font-semibold text-lg">{fuel.name}</h3>
+                  <h3 className="font-semibold text-lg">{fuel?.name}</h3>
                 </div>
                 <p className="text-sm text-gray-500 font-mono">{fuel.code}</p>
               </div>

@@ -56,7 +56,7 @@ export function CarClassManagement() {
           <Card key={c.id} className="p-5">
             {editingId === c.id ? (
               <div className="space-y-3">
-                <Input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                <Input value={editForm?.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
                 <Input value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} />
                 <Input type="number" value={editForm.weekly_fuel_limit} onChange={e => setEditForm({...editForm, weekly_fuel_limit: parseInt(e.target.value)})} />
                 <div className="flex gap-2">
@@ -71,7 +71,7 @@ export function CarClassManagement() {
               <>
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-bold">{c.name}</h3>
+                    <h3 className="text-xl font-bold">{c?.name}</h3>
                     <p className="text-sm text-gray-500">{c.description || '—'}</p>
                   </div>
                 </div>

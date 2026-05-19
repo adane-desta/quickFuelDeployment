@@ -119,7 +119,7 @@ export function FuelManagementAdmin() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Stations</SelectItem>
-              {stations.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              {stations.map(s => <SelectItem key={s.id} value={s.id}>{s?.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
