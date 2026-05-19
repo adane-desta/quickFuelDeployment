@@ -31,7 +31,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
   const availableFuels = station.availableFuels || 
     (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
 
-  const waitTime = station.waitTime || getWaitTimeFromQueue(station.queueLength);
+  const waitTime = station.waitTime || getWaitTimeFromQueue(station?.queueLength);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -56,10 +56,10 @@ export function StationCard({ station, onReserve }: StationCardProps) {
       </div>
 
       {/* Queue Status */}
-      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-3 ${queueColors[station.queueLength]}`}>
-        <span className={`w-2 h-2 rounded-full ${queueDotColors[station.queueLength]} animate-pulse`}></span>
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-3 ${queueColors[station?.queueLength]}`}>
+        <span className={`w-2 h-2 rounded-full ${queueDotColors[station?.queueLength]} animate-pulse`}></span>
         <Users className="w-4 h-4" />
-        <span className="text-sm">{station.queueLength} Queue</span>
+        <span className="text-sm">{station?.queueLength} Queue</span>
       </div>
 
       {/* Info Grid */}
