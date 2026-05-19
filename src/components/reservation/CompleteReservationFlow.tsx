@@ -23,6 +23,8 @@ interface CompleteReservationFlowProps {
   onClose?: () => void;
 }
 
+const STORAGE_KEY = 'pendingReservationFlow';
+
 const STEPS = [
   { id: 1, name: 'Station', description: 'Select fuel station' },
   { id: 2, name: 'Time Slot', description: 'Choose date & time' },
@@ -40,27 +42,35 @@ export function CompleteReservationFlow({
 
   const [searchParams] = useSearchParams();
 
-  const paymentStatus = searchParams.get('payment');
-  const reservationIdFromUrl = searchParams.get('reservationId');
-  const stationIdFromUrl = searchParams.get('stationId');
+  const paymentStatus =
+    searchParams.get('payment');
 
-  const [restoringState, setRestoringState] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const contentRef =
+    useRef<HTMLDivElement>(null);
 
-  const [currentStep, setCurrentStep] = useState(() => {
-    if (paymentStatus === 'success' && reservationIdFromUrl) {
-      return 5;
-    }
+  const [restoringState, setRestoringState] =
+    useState(false);
 
-    if (initialStation) {
-      return 2;
-    }
+  const [creating, setCreating] =
+    useState(false);
 
-    return 1;
-  });
+  const [currentStep, setCurrentStep] =
+    useState(() => {
+      if (paymentStatus === 'success') {
+        return 5;
+      }
+
+      if (initialStation) {
+        return 2;
+      }
+
+      return 1;
+    });
 
   const [selectedStation, setSelectedStation] =
-    useState<Station | null>(initialStation);
+    useState<Station | null>(
+      initialStation
+    );
 
   const [selectedTimeSlot, setSelectedTimeSlot] =
     useState<TimeSlot | null>(null);
@@ -68,113 +78,113 @@ export function CompleteReservationFlow({
   const [preferredFuelId, setPreferredFuelId] =
     useState<string | null>(null);
 
-  const [fuelData, setFuelData] = useState<{
-    fuelTypeId: string;
-    quantity: number;
-    pricePerLiter: number;
-    totalPrice: number;
-  } | null>(null);
+  const [fuelData, setFuelData] =
+    useState<{
+      fuelTypeId: string;
+      quantity: number;
+      pricePerLiter: number;
+      totalPrice: number;
+    } | null>(null);
 
   const [reservationId, setReservationId] =
     useState<string | null>(null);
 
-  const contentRef = useRef<HTMLDivElement>(null);
-
   /*
-    ==========================================
+    =========================================
     FETCH DRIVER PREFERRED FUEL
-    ==========================================
+    =========================================
   */
   useEffect(() => {
     const fetchDriverPref = async () => {
       if (!user) return;
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('users')
         .select('preferred_fuel_type_id')
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        console.error(error);
-        return;
-      }
-
-      setPreferredFuelId(data?.preferred_fuel_type_id || null);
+      setPreferredFuelId(
+        data?.preferred_fuel_type_id || null
+      );
     };
 
     fetchDriverPref();
   }, [user]);
 
   /*
-    ==========================================
-    RESTORE PAYMENT FLOW AFTER CHAPA REDIRECT
-    ==========================================
+    =========================================
+    RESTORE FLOW AFTER CHAPA REDIRECT
+    =========================================
   */
   useEffect(() => {
-    const restorePaymentFlow = async () => {
-      if (
-        paymentStatus !== 'success' ||
-        !reservationIdFromUrl
-      ) {
+    const restoreFlow = async () => {
+      if (paymentStatus !== 'success') {
         return;
       }
 
       setRestoringState(true);
 
       try {
-        console.log('Restoring payment flow...');
+        const savedFlow =
+          localStorage.getItem(
+            STORAGE_KEY
+          );
 
-        // Restore reservation id
-        setReservationId(reservationIdFromUrl);
+        if (!savedFlow) {
+          console.error(
+            'No saved reservation flow found'
+          );
 
-        // Restore station from URL
-        if (stationIdFromUrl) {
-          const { data: stationData, error } = await supabase
-            .from('stations')
-            .select('*')
-            .eq('id', stationIdFromUrl)
-            .single();
-
-          if (error) {
-            console.error(
-              'Failed to restore station:',
-              error
-            );
-          }
-
-          if (stationData) {
-            console.log(
-              'Restored station:',
-              stationData
-            );
-
-            setSelectedStation(stationData);
-          }
+          return;
         }
 
-        // OPTIONAL:
-        // Verify reservation payment status
-        const { data: reservationData, error: reservationError } =
+        const parsed =
+          JSON.parse(savedFlow);
+
+        console.log(
+          'Restored reservation flow:',
+          parsed
+        );
+
+        setReservationId(
+          parsed.reservationId
+        );
+
+        setSelectedStation(
+          parsed.station
+        );
+
+        setSelectedTimeSlot(
+          parsed.timeSlot
+        );
+
+        setFuelData(
+          parsed.fuelData
+        );
+
+        // VERIFY PAYMENT STATUS
+        const { data, error } =
           await supabase
             .from('reservations')
-            .select('status, payment_status')
-            .eq('id', reservationIdFromUrl)
+            .select(
+              'status,payment_status'
+            )
+            .eq(
+              'id',
+              parsed.reservationId
+            )
             .single();
-
-        if (reservationError) {
-          console.error(
-            'Reservation verification failed:',
-            reservationError
-          );
-        }
 
         console.log(
           'Reservation verification:',
-          reservationData
+          data
         );
 
-        // Move to confirmation
+        if (error) {
+          console.error(error);
+        }
+
         setCurrentStep(5);
 
         notifications.reservation.created(
@@ -183,13 +193,16 @@ export function CompleteReservationFlow({
 
       } catch (error) {
         console.error(
-          'Error restoring payment flow:',
+          'Failed to restore reservation flow:',
           error
         );
       } finally {
         setRestoringState(false);
 
-        // Clean URL
+        localStorage.removeItem(
+          STORAGE_KEY
+        );
+
         window.history.replaceState(
           {},
           '',
@@ -198,17 +211,13 @@ export function CompleteReservationFlow({
       }
     };
 
-    restorePaymentFlow();
-  }, [
-    paymentStatus,
-    reservationIdFromUrl,
-    stationIdFromUrl,
-  ]);
+    restoreFlow();
+  }, [paymentStatus]);
 
   /*
-    ==========================================
+    =========================================
     SCROLL TO TOP ON STEP CHANGE
-    ==========================================
+    =========================================
   */
   useEffect(() => {
     if (contentRef.current) {
@@ -217,12 +226,12 @@ export function CompleteReservationFlow({
   }, [currentStep]);
 
   /*
-    ==========================================
-    DEBUG LOGGING
-    ==========================================
+    =========================================
+    DEBUGGING
+    =========================================
   */
   useEffect(() => {
-    console.log('DEBUG FLOW STATE', {
+    console.log('FLOW DEBUG', {
       currentStep,
       selectedStation,
       selectedTimeSlot,
@@ -238,17 +247,24 @@ export function CompleteReservationFlow({
   ]);
 
   /*
-    ==========================================
+    =========================================
     HANDLERS
-    ==========================================
+    =========================================
   */
-  const handleStationSelect = (station: Station) => {
+
+  const handleStationSelect = (
+    station: Station
+  ) => {
     setSelectedStation(station);
+
     setCurrentStep(2);
   };
 
-  const handleTimeSlotSelect = (slot: TimeSlot) => {
+  const handleTimeSlotSelect = (
+    slot: TimeSlot
+  ) => {
     setSelectedTimeSlot(slot);
+
     setCurrentStep(3);
   };
 
@@ -266,66 +282,95 @@ export function CompleteReservationFlow({
     });
   };
 
-  const handleProceedToPayment = async () => {
-    console.log('=== handleProceedToPayment called ===');
-
-    console.log('user:', user);
-    console.log('selectedStation:', selectedStation);
-    console.log('selectedTimeSlot:', selectedTimeSlot);
-    console.log('fuelData:', fuelData);
-
-    if (
-      !user ||
-      !selectedStation ||
-      !selectedTimeSlot ||
-      !fuelData
-    ) {
-      console.error('Missing reservation data');
-
-      notifyError('Missing required information');
-
-      return;
-    }
-
-    setCreating(true);
-
-    try {
-      const resId =
-        await reservationService.createReservation(
-          {
-            station_id: selectedStation.id,
-            time_slot_id: selectedTimeSlot.id,
-            fuel_type_id: fuelData.fuelTypeId,
-            quantity: fuelData.quantity,
-            payment_method: 'Telebirr',
-          },
-          user.id
+  /*
+    =========================================
+    CREATE RESERVATION
+    =========================================
+  */
+  const handleProceedToPayment =
+    async () => {
+      if (
+        !user ||
+        !selectedStation ||
+        !selectedTimeSlot ||
+        !fuelData
+      ) {
+        notifyError(
+          'Missing required information'
         );
 
-      if (!resId) {
-        throw new Error(
-          'Reservation creation returned null'
-        );
+        return;
       }
 
-      setReservationId(resId);
+      setCreating(true);
 
-      setCurrentStep(4);
+      try {
+        const resId =
+          await reservationService.createReservation(
+            {
+              station_id:
+                selectedStation.id,
 
-    } catch (error: any) {
-      console.error(
-        'Reservation creation error:',
-        error
-      );
+              time_slot_id:
+                selectedTimeSlot.id,
 
-      notifyError(
-        'Failed to create reservation',
-        error
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
+              fuel_type_id:
+                fuelData.fuelTypeId,
+
+              quantity:
+                fuelData.quantity,
+
+              payment_method:
+                'Telebirr',
+            },
+            user.id
+          );
+
+        if (!resId) {
+          throw new Error(
+            'Reservation creation failed'
+          );
+        }
+
+        /*
+          =================================
+          SAVE FLOW BEFORE REDIRECT
+          =================================
+        */
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            reservationId: resId,
+
+            station:
+              selectedStation,
+
+            timeSlot:
+              selectedTimeSlot,
+
+            fuelData,
+          })
+        );
+
+        console.log(
+          'Saved reservation flow'
+        );
+
+        setReservationId(resId);
+
+        setCurrentStep(4);
+
+      } catch (error: any) {
+        console.error(error);
+
+        notifyError(
+          'Failed to create reservation',
+          error
+        );
+      } finally {
+        setCreating(false);
+      }
+    };
 
   const handlePaymentSuccess = () => {
     setCurrentStep(5);
@@ -337,14 +382,24 @@ export function CompleteReservationFlow({
 
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep((prev) => prev - 1);
+      setCurrentStep(
+        (prev) => prev - 1
+      );
     }
   };
 
   const handleStartOver = () => {
-    setCurrentStep(initialStation ? 2 : 1);
+    localStorage.removeItem(
+      STORAGE_KEY
+    );
 
-    setSelectedStation(initialStation || null);
+    setCurrentStep(
+      initialStation ? 2 : 1
+    );
+
+    setSelectedStation(
+      initialStation || null
+    );
 
     setSelectedTimeSlot(null);
 
@@ -354,9 +409,9 @@ export function CompleteReservationFlow({
   };
 
   /*
-    ==========================================
-    LOADING SCREEN DURING PAYMENT RESTORE
-    ==========================================
+    =========================================
+    LOADING SCREEN
+    =========================================
   */
   if (restoringState) {
     return (
@@ -381,6 +436,7 @@ export function CompleteReservationFlow({
 
         {/* HEADER */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+
           <div>
             <h2 className="text-gray-900">
               Reserve Fuel
@@ -405,6 +461,7 @@ export function CompleteReservationFlow({
 
         {/* STEP INDICATOR */}
         <div className="bg-white px-6 py-2 border-b">
+
           <div className="flex items-center gap-4 mb-2">
 
             {currentStep > 1 &&
@@ -422,8 +479,8 @@ export function CompleteReservationFlow({
 
             <div className="flex-1">
               <h1 className="text-xl font-bold">
-                {STEPS[currentStep - 1]?.name ||
-                  'Unknown'}
+                {STEPS[currentStep - 1]
+                  ?.name || ''}
               </h1>
 
               <p className="text-sm text-gray-600">
@@ -434,6 +491,7 @@ export function CompleteReservationFlow({
           </div>
 
           <div className="space-y-2">
+
             <div className="flex justify-between text-xs text-gray-600">
               <span>
                 Step {currentStep} of{' '}
@@ -442,7 +500,6 @@ export function CompleteReservationFlow({
 
               <span>
                 {Math.round(progress)}%
-                Complete
               </span>
             </div>
 
@@ -479,6 +536,7 @@ export function CompleteReservationFlow({
           ref={contentRef}
           className="flex-1 overflow-y-auto px-6 py-6"
         >
+
           {/* STEP 1 */}
           {currentStep === 1 &&
             !initialStation && (
@@ -493,7 +551,9 @@ export function CompleteReservationFlow({
           {currentStep === 2 &&
             selectedStation && (
               <TimeSlotSelector
-                stationId={selectedStation.id}
+                stationId={
+                  selectedStation?.id
+                }
                 onSelectSlot={
                   handleTimeSlotSelect
                 }
@@ -509,7 +569,7 @@ export function CompleteReservationFlow({
               <>
                 <FuelTypeSelector
                   stationId={
-                    selectedStation.id
+                    selectedStation?.id
                   }
                   onSelectFuel={
                     handleFuelSelect
