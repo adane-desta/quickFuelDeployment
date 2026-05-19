@@ -178,8 +178,8 @@ export function CreateStationAdvanced() {
       // Step 4: Generate time slots
       const slotsCount = await stationService.generateTimeSlots(stationId, 14);
 
-      notifications.station.created(stationData?.name);
-      notifications.station.timeSlotsGenerated(slotsCount);
+      notifications.station?.created(stationData?.name);
+      notifications.station?.timeSlotsGenerated(slotsCount);
       setStep(4);
     } catch (error) {
       notifyError('Failed to create station', error);
@@ -492,7 +492,7 @@ export function CreateStationAdvanced() {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={loading} className="flex-1">
-            {loading ? 'Creating Station...' : 'Create Station'}
+            {loading ? 'Creating station..' : 'Create Station'}
           </Button>
         )}
       </div>

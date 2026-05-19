@@ -115,8 +115,8 @@ export function DriverLayout() {
         const distance = getDistanceFromLatLonInKm(
           userLocation.lat,
           userLocation.lng,
-          station.latitude,
-          station.longitude
+          station?.latitude,
+          station?.longitude
         );
         const travelTime = getTravelTime(distance);
         return {
@@ -145,8 +145,8 @@ export function DriverLayout() {
     const query = searchQuery.toLowerCase();
     return (
       station?.name.toLowerCase().includes(query) ||
-      (station.address || '').toLowerCase().includes(query) ||
-      station.availableFuels.some(fuel => fuel.toLowerCase().includes(query))
+      (station?.address || '').toLowerCase().includes(query) ||
+      station?.availableFuels.some(fuel => fuel.toLowerCase().includes(query))
     );
   });
 

@@ -218,10 +218,10 @@ export function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) =>
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="flex items-center gap-2"><MapPin className="size-4 text-green-200" /><span className="text-green-100 truncate">{station.address?.split(',')[0]}</span></div>
-            <div className="flex items-center gap-2"><Phone className="size-4 text-green-200" /><span className="text-green-100">{station.phone}</span></div>
-            <div className="flex items-center gap-2"><Clock3 className="size-4 text-green-200" /><span className="text-green-100">{station.is_24_hours ? '24/7' : `${station.opening_time} - ${station.closing_time}`}</span></div>
-            <div><Badge className="bg-white text-green-600">{station.is_active ? 'Active' : 'Inactive'}</Badge></div>
+            <div className="flex items-center gap-2"><MapPin className="size-4 text-green-200" /><span className="text-green-100 truncate">{station?.address?.split(',')[0]}</span></div>
+            <div className="flex items-center gap-2"><Phone className="size-4 text-green-200" /><span className="text-green-100">{station?.phone}</span></div>
+            <div className="flex items-center gap-2"><Clock3 className="size-4 text-green-200" /><span className="text-green-100">{station?.is_24_hours ? '24/7' : `${station?.opening_time} - ${station?.closing_time}`}</span></div>
+            <div><Badge className="bg-white text-green-600">{station?.is_active ? 'Active' : 'Inactive'}</Badge></div>
           </div>
         </div>
       </div>

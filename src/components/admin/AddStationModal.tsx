@@ -259,7 +259,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
       resetForm();
     } catch (error: any) {
       console.error(error);
-      let friendlyMessage = 'Failed to register station. ';
+      let friendlyMessage = 'Failed to register station ';
       if (error.message.includes('duplicate key')) {
         if (error.message.includes('email')) friendlyMessage = 'Owner email already registered.';
         else if (error.message.includes('phone')) friendlyMessage = 'Phone number already used.';

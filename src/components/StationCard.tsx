@@ -28,8 +28,8 @@ export function StationCard({ station, onReserve }: StationCardProps) {
     }
   };
 
-  const availableFuels = station.availableFuels || 
-    (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
+  const availableFuels = station?.availableFuels || 
+    (station?.petrolAvailable ? ['Petrol'] : []).concat(station?.dieselAvailable ? ['Diesel'] : []);
 
   const waitTime = station?.waitTime || getWaitTimeFromQueue(station?.queueLength);
 
@@ -43,10 +43,10 @@ export function StationCard({ station, onReserve }: StationCardProps) {
             <MapPin className="w-4 h-4" />
             <span className="text-sm">{station?.distance?.toFixed(1) || '?'} km away</span>
           </div>
-          {station.travelTime !== undefined && (
+          {station?.travelTime !== undefined && (
             <div className="flex items-center gap-1.5 text-gray-600 mt-0.5">
               <Clock className="w-3 h-3" />
-              <span className="text-xs">~{station.travelTime} min drive</span>
+              <span className="text-xs">~{station?.travelTime} min drive</span>
             </div>
           )}
         </div>
