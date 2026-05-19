@@ -117,102 +117,119 @@ export function CompleteReservationFlow({
     RESTORE FLOW AFTER CHAPA REDIRECT
     =========================================
   */
-  useEffect(() => {
-    const restoreFlow = async () => {
-      if (paymentStatus !== 'success') {
-        return;
-      }
-
-      setRestoringState(true);
-
-      try {
-        const savedFlow =
-          localStorage.getItem(
-            STORAGE_KEY
-          );
-
-        if (!savedFlow) {
-          console.error(
-            'No saved reservation flow found'
-          );
-
+    useEffect(() => {
+      const restoreFlow = async () => {
+    
+        if (paymentStatus !== 'success') {
           return;
         }
-
-        const parsed =
-          JSON.parse(savedFlow);
-
+    
         console.log(
-          'Restored reservation flow:',
-          parsed
+          'Starting reservation restore...'
         );
-
-        setReservationId(
-          parsed.reservationId
-        );
-
-        setSelectedStation(
-          parsed.station
-        );
-
-        setSelectedTimeSlot(
-          parsed.timeSlot
-        );
-
-        setFuelData(
-          parsed.fuelData
-        );
-
-        // VERIFY PAYMENT STATUS
-        const { data, error } =
-          await supabase
-            .from('reservations')
-            .select(
-              'status,payment_status'
-            )
-            .eq(
-              'id',
-              parsed.reservationId
-            )
-            .single();
-
-        console.log(
-          'Reservation verification:',
-          data
-        );
-
-        if (error) {
-          console.error(error);
+    
+        setRestoringState(true);
+    
+        try {
+    
+          const savedFlow =
+            localStorage.getItem(
+              STORAGE_KEY
+            );
+    
+          if (!savedFlow) {
+    
+            console.error(
+              'No saved reservation flow found'
+            );
+    
+            setRestoringState(false);
+    
+            return;
+          }
+    
+          const parsed =
+            JSON.parse(savedFlow);
+    
+          console.log(
+            'Restored reservation flow:',
+            parsed
+          );
+    
+          /*
+            ==============================
+            RESTORE STATE
+            ==============================
+          */
+    
+          setReservationId(
+            parsed.reservationId || null
+          );
+    
+          setSelectedStation(
+            parsed.station || null
+          );
+    
+          setSelectedTimeSlot(
+            parsed.timeSlot || null
+          );
+    
+          setFuelData(
+            parsed.fuelData || null
+          );
+    
+          /*
+            ==============================
+            MOVE TO CONFIRMATION
+            ==============================
+          */
+    
+          setCurrentStep(5);
+    
+          notifications.reservation.created(
+            'Reservation confirmed!'
+          );
+    
+          console.log(
+            'Reservation restore completed successfully'
+          );
+    
+          /*
+            ==============================
+            CLEANUP
+            ==============================
+          */
+    
+          setTimeout(() => {
+    
+            setRestoringState(false);
+    
+            localStorage.removeItem(
+              STORAGE_KEY
+            );
+    
+            window.history.replaceState(
+              {},
+              '',
+              window.location.pathname
+            );
+    
+          }, 500);
+    
+        } catch (error) {
+    
+          console.error(
+            'Failed to restore reservation flow:',
+            error
+          );
+    
+          setRestoringState(false);
         }
-
-        setCurrentStep(5);
-
-        notifications.reservation.created(
-          'Reservation confirmed!'
-        );
-
-      } catch (error) {
-        console.error(
-          'Failed to restore reservation flow:',
-          error
-        );
-      } finally {
-        setRestoringState(false);
-
-        localStorage.removeItem(
-          STORAGE_KEY
-        );
-
-        window.history.replaceState(
-          {},
-          '',
-          window.location.pathname
-        );
-      }
-    };
-
-    restoreFlow();
-  }, [paymentStatus]);
+      };
+    
+      restoreFlow();
+    
+    }, [paymentStatus]);
 
   /*
     =========================================
@@ -230,21 +247,21 @@ export function CompleteReservationFlow({
     DEBUGGING
     =========================================
   */
-  useEffect(() => {
-    console.log('FLOW DEBUG', {
+    useEffect(() => {
+
+      console.log('RESTORE STATE DEBUG', {
+        restoringState,
+        currentStep,
+        reservationId,
+        selectedStation,
+      });
+    
+    }, [
+      restoringState,
       currentStep,
-      selectedStation,
-      selectedTimeSlot,
-      fuelData,
       reservationId,
-    });
-  }, [
-    currentStep,
-    selectedStation,
-    selectedTimeSlot,
-    fuelData,
-    reservationId,
-  ]);
+      selectedStation,
+    ]);
 
   /*
     =========================================
@@ -413,19 +430,24 @@ export function CompleteReservationFlow({
     LOADING SCREEN
     =========================================
   */
-  if (restoringState) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-
-          <p className="text-gray-600">
-            Restoring reservation...
-          </p>
+    if (
+      restoringState &&
+      currentStep !== 5
+    ) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+          <div className="flex flex-col items-center gap-4">
+    
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    
+            <p className="text-gray-600 font-medium">
+              Restoring reservation...
+            </p>
+    
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
   const progress =
     (currentStep / STEPS.length) * 100;
