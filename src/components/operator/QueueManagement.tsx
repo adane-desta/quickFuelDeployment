@@ -7,7 +7,7 @@ export function QueueManagement() {
   const { user } = useAuth();
   const station = mockStations.find(s => s.id === user?.stationId) || mockStations[0];
 
-  const [queueLength, setQueueLength] = useState<'Short' | 'Medium' | 'Long'>(station.queueLength);
+  const [queueLength, setQueueLength] = useState<'Short' | 'Medium' | 'Long'>(station?.queueLength);
   const [waitTime, setWaitTime] = useState(station.waitTime);
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);

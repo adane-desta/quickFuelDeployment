@@ -43,10 +43,10 @@ export function StationSelection({ station, onNext }: StationSelectionProps) {
         </div>
 
         {/* Queue Status */}
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-4 ${queueColors[station.queueLength]}`}>
-          <span className={`w-2 h-2 rounded-full ${queueDotColors[station.queueLength]} animate-pulse`}></span>
+        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-4 ${queueColors[station?.queueLength]}`}>
+          <span className={`w-2 h-2 rounded-full ${queueDotColors[station?.queueLength]} animate-pulse`}></span>
           <Users className="w-4 h-4" />
-          <span className="text-sm">{station.queueLength} Queue</span>
+          <span className="text-sm">{station?.queueLength} Queue</span>
         </div>
 
         {/* Info Grid */}
