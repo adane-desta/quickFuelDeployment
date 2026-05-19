@@ -293,7 +293,7 @@ export function CompleteReservationFlow({
       const resId =
         await reservationService.createReservation(
           {
-            station_id: selectedstation?.id,
+            station_id: selectedStation.id,
             time_slot_id: selectedTimeSlot.id,
             fuel_type_id: fuelData.fuelTypeId,
             quantity: fuelData.quantity,
@@ -493,7 +493,7 @@ export function CompleteReservationFlow({
           {currentStep === 2 &&
             selectedStation && (
               <TimeSlotSelector
-                stationId={selectedstation?.id}
+                stationId={selectedStation.id}
                 onSelectSlot={
                   handleTimeSlotSelect
                 }
@@ -509,7 +509,7 @@ export function CompleteReservationFlow({
               <>
                 <FuelTypeSelector
                   stationId={
-                    selectedstation?.id
+                    selectedStation.id
                   }
                   onSelectFuel={
                     handleFuelSelect

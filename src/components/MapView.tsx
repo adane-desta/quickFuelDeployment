@@ -58,20 +58,20 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
     markersRef.current.push(userMarker);
 
     stations.forEach(station => {
-      const hasFuel = station?.availableFuels && station?.availableFuels.length > 0;
+      const hasFuel = station.availableFuels && station.availableFuels.length > 0;
       const popupContent = `
         <div class="p-2 min-w-[220px]">
           <h3 class="font-bold text-gray-900">${station?.name}</h3>
-          <p class="text-sm text-gray-600">${station?.address || 'Address not available'}</p>
+          <p class="text-sm text-gray-600">${station.address || 'Address not available'}</p>
           <p class="text-sm text-gray-600 mt-1">Distance: ${station?.distance ? station?.distance.toFixed(1) : '?'} km</p>
-          <p class="text-sm text-gray-600">Travel time: ~${station?.travelTime || '?'} min</p>
+          <p class="text-sm text-gray-600">Travel time: ~${station.travelTime || '?'} min</p>
           <div class="flex flex-wrap gap-1 mt-2">
-            ${station?.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}
+            ${station.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}
           </div>
           <button class="mt-3 w-full bg-blue-600 text-white py-1 rounded-md text-sm ${!hasFuel ? 'opacity-50 cursor-not-allowed' : ''}" data-station-id="${station.id}" ${!hasFuel ? 'disabled' : ''}>Reserve Fuel</button>
         </div>
       `;
-      const marker = L.marker([station?.latitude, station?.longitude]).addTo(mapRef.current!);
+      const marker = L.marker([station.latitude, station.longitude]).addTo(mapRef.current!);
       marker.bindPopup(popupContent);
       // Use popupopen event to attach click handler
       marker.on('popupopen', () => {
