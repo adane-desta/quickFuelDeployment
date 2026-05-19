@@ -37,7 +37,7 @@ export function StationManagement() {
   };
 
   const filtered = stations.filter(s => {
-    const matchesSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = !search || s?.name.toLowerCase().includes(search.toLowerCase()) ||
       (s.address || '').toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'all' || (filter === 'verified' ? s.is_verified : !s.is_verified);
     return matchesSearch && matchesFilter;
@@ -150,7 +150,7 @@ export function StationManagement() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Building2 className={`w-4 h-4 ${station.is_verified ? 'text-green-600' : 'text-yellow-600'}`} />
-                  <h3 className="text-gray-900 text-sm">{station.name}</h3>
+                  <h3 className="text-gray-900 text-sm">{station?.name}</h3>
                 </div>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
                   station.is_verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
@@ -227,7 +227,7 @@ export function StationManagement() {
                   <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                     <Building2 className="w-7 h-7 text-green-600" />
                   </div>
-                  <h4 className="text-gray-900">{selectedStation.name}</h4>
+                  <h4 className="text-gray-900">{selectedStation?.name}</h4>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs mt-1 ${
                     selectedStation.is_verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                   }`}>

@@ -33,7 +33,7 @@ export function StationSelection({ station, onNext }: StationSelectionProps) {
             <Fuel className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <h4 className="text-gray-900 mb-1">{station.name}</h4>
+            <h4 className="text-gray-900 mb-1">{station?.name}</h4>
             <div className="flex items-center gap-1.5 text-gray-600">
               <MapPin className="w-4 h-4" />
               <span className="text-sm">{station.distance} km away</span>

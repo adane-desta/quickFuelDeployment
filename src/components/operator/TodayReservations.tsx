@@ -129,7 +129,7 @@ export function TodayReservations() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Today's Reservations</h2>
-          <p className="text-gray-600">{station.name}</p>
+          <p className="text-gray-600">{station?.name}</p>
           <p className="text-sm text-gray-500">
             {new Date().toLocaleDateString('en-US', {
               weekday: 'long',

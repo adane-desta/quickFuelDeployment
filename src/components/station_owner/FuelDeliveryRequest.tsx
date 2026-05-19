@@ -284,7 +284,7 @@ export function FuelDeliveryRequest() {
                     <SelectValue placeholder="Select fuel type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {fuelTypes.map(ft => <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>)}
+                    {fuelTypes.map(ft => <SelectItem key={ft.id} value={ft.id}>{ft?.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

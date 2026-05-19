@@ -82,7 +82,7 @@ export function CreateStationAdvanced() {
   };
 
   const validateStep1 = (): boolean => {
-    if (!stationData.name || stationData.name.length < 2) {
+    if (!stationData?.name || stationData?.name.length < 2) {
       notifyWarning('Station name required');
       return false;
     }
@@ -178,7 +178,7 @@ export function CreateStationAdvanced() {
       // Step 4: Generate time slots
       const slotsCount = await stationService.generateTimeSlots(stationId, 14);
 
-      notifications.station.created(stationData.name);
+      notifications.station.created(stationData?.name);
       notifications.station.timeSlotsGenerated(slotsCount);
       setStep(4);
     } catch (error) {
@@ -205,7 +205,7 @@ export function CreateStationAdvanced() {
         <Card className="p-8 text-center border-2 border-green-500 bg-green-50">
           <CheckCircle className="size-16 mx-auto mb-4 text-green-600" />
           <h2 className="text-2xl font-bold text-green-900 mb-2">Station Created Successfully!</h2>
-          <p className="text-green-700 mb-6">{stationData.name} is now ready to accept reservations.</p>
+          <p className="text-green-700 mb-6">{stationData?.name} is now ready to accept reservations.</p>
           <div className="space-y-3 text-left mb-6">
             <div className="p-3 bg-white rounded-lg">
               <p className="text-sm text-gray-600">✅ Station registered</p>
@@ -256,7 +256,7 @@ export function CreateStationAdvanced() {
             <div>
               <Label>Station Name *</Label>
               <Input
-                value={stationData.name}
+                value={stationData?.name}
                 onChange={(e) => setStationData({ ...stationData, name: e.target.value })}
                 placeholder="e.g., QuickFuel Bole"
               />
@@ -429,7 +429,7 @@ export function CreateStationAdvanced() {
               const inv = inventoryData[index];
               return (
                 <Card key={fuelType.id} className="p-4 bg-gray-50">
-                  <h4 className="font-medium mb-3">{fuelType.name} ({fuelType.code})</h4>
+                  <h4 className="font-medium mb-3">{fuelType?.name} ({fuelType.code})</h4>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">Initial Stock (L)</Label>

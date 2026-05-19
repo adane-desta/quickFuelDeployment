@@ -33,7 +33,7 @@ export function QueueManagement() {
     <div className="p-4 lg:p-8 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-gray-900 mb-1">Queue Management</h1>
-        <p className="text-gray-600">Update queue status for {station.name}</p>
+        <p className="text-gray-600">Update queue status for {station?.name}</p>
         <p className="text-xs text-gray-400 mt-1">Last updated: {lastUpdated}</p>
       </div>
 

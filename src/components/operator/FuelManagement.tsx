@@ -87,7 +87,7 @@ export function FuelManagement() {
     <div className="p-4 lg:p-8 max-w-7xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1">Fuel Stock</h1>
-        <p className="text-gray-600">View current fuel inventory for {station.name}</p>
+        <p className="text-gray-600">View current fuel inventory for {station?.name}</p>
         <p className="text-xs text-gray-500 mt-1">Read‑only view – updated automatically when fuel is dispensed</p>
       </div>
 

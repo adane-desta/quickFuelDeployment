@@ -517,7 +517,7 @@ export function OwnerDashboard() {
               </div>
               {!editingStation ? (
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3"><Building2 className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Name</p><p className="font-medium">{station.name}</p></div></div>
+                  <div className="flex items-start gap-3"><Building2 className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Name</p><p className="font-medium">{station?.name}</p></div></div>
                   <div className="flex items-start gap-3"><MapPin className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Address</p><p className="font-medium">{station.address}</p></div></div>
                   <div className="flex items-start gap-3"><Phone className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Phone</p><p className="font-medium">{station.phone}</p></div></div>
                   <div className="flex items-start gap-3"><Clock className="size-5 text-gray-400 mt-0.5" /><div><p className="text-xs text-gray-500">Operating Hours</p><p className="font-medium">{station.is_24_hours ? '24/7' : `${station.opening_time} - ${station.closing_time}`}</p></div></div>
@@ -527,7 +527,7 @@ export function OwnerDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div><Label>Station Name</Label><Input value={stationForm.name || ''} onChange={e => setStationForm({...stationForm, name: e.target.value})} /></div>
+                  <div><Label>Station Name</Label><Input value={stationForm?.name || ''} onChange={e => setStationForm({...stationForm, name: e.target.value})} /></div>
                   <div><Label>Address</Label><Input value={stationForm.address || ''} onChange={e => setStationForm({...stationForm, address: e.target.value})} /></div>
                   <div><Label>Phone</Label><Input value={stationForm.phone || ''} onChange={e => setStationForm({...stationForm, phone: e.target.value})} /></div>
                   <div className="grid grid-cols-2 gap-4">

@@ -112,9 +112,9 @@ export function SystemAnalytics() {
             // Missing entry – create with zero values and current timestamp
             completeData.push({
               stationId: station.id,
-              stationName: station.name,
+              stationName: station?.name,
               fuelTypeId: fuel.id,
-              fuelTypeName: fuel.name,
+              fuelTypeName: fuel?.name,
               totalAvailable: 0,
               totalDispensed: 0,
               digitalDispensed: 0,
@@ -179,7 +179,7 @@ export function SystemAnalytics() {
 
   // Helper: get base price for a fuel type name
   const getFuelPrice = (fuelName: string): number => {
-    const ft = fuelTypes.find(f => f.name === fuelName);
+    const ft = fuelTypes.find(f => f?.name === fuelName);
     return ft?.base_price_per_liter || 0;
   };
 
@@ -266,7 +266,7 @@ export function SystemAnalytics() {
             <SelectContent>
               <SelectItem value="All">All Stations</SelectItem>
               {stations.map(station => (
-                <SelectItem key={station.id} value={station.id}>{station.name}</SelectItem>
+                <SelectItem key={station.id} value={station.id}>{station?.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>

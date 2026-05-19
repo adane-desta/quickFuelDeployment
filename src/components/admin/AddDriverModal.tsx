@@ -232,7 +232,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
                   <Select value={formData.carClassId} onValueChange={val => setFormData({...formData, carClassId: val})}>
                     <SelectTrigger className={errors.carClassId ? 'border-red-500' : ''}><SelectValue placeholder="Select car class" /></SelectTrigger>
                     <SelectContent>
-                      {carClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name} – {c.weekly_fuel_limit} L/week</SelectItem>)}
+                      {carClasses.map(c => <SelectItem key={c.id} value={c.id}>{c?.name} – {c.weekly_fuel_limit} L/week</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}
@@ -247,7 +247,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
                   <Select value={formData.preferredFuelTypeId} onValueChange={val => setFormData({...formData, preferredFuelTypeId: val})}>
                     <SelectTrigger className={errors.preferredFuelTypeId ? 'border-red-500' : ''}><SelectValue placeholder="Select fuel type" /></SelectTrigger>
                     <SelectContent>
-                      {fuelTypes.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                      {fuelTypes.map(f => <SelectItem key={f.id} value={f.id}>{f?.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}

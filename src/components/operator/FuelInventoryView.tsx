@@ -103,7 +103,7 @@ export function FuelInventoryView() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Fuel Inventory</h2>
-          <p className="text-gray-600">{station.name}</p>
+          <p className="text-gray-600">{station?.name}</p>
           <p className="text-sm text-gray-500">Read-only view</p>
         </div>
         <Button onClick={loadData} variant="outline" size="sm">

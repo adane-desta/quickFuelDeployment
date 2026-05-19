@@ -184,7 +184,7 @@ export function OwnerAnalytics() {
     for (const res of completedRes) {
       const ft = fuelTypeMap.get(res.fuel_type_id);
       if (!ft) continue;
-      const fuelName = ft.name;
+      const fuelName = ft?.name;
       const existing = fuelMap.get(fuelName);
       if (existing) {
         existing.quantity_dispensed += res.quantity || 0;

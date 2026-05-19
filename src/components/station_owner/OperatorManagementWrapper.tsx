@@ -53,5 +53,5 @@ export function OperatorManagementWrapper() {
     );
   }
 
-  return <OperatorManagement stationId={station.id} stationName={station.name} />;
+  return <OperatorManagement stationId={station.id} stationName={station?.name} />;
 }

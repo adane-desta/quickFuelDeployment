@@ -29,7 +29,7 @@ export function UserManagement() {
         .from('stations')
         .select('id, name');
       const stationMap = new Map<string, string>();
-      stations?.forEach(s => stationMap.set(s.id, s.name));
+      stations?.forEach(s => stationMap.set(s.id, s?.name));
       setStationsMap(stationMap);
 
       // Fetch all users

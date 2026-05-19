@@ -21,7 +21,7 @@ export function ConfirmationScreen({ reservationData, onClose }: ConfirmationScr
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  // const smsMessage = `QuickFuel Reservation Confirmed!\n\nStation: ${reservationData.station.name}\nDate: ${formatDate(reservationData.date)}\nTime: ${reservationData.timeSlot}\nFuel: ${reservationData.fuelType} - ${reservationData.quantity}L\n\nPickup Code: ${numericCode}\n\nShow this code at the station.`;
+  // const smsMessage = `QuickFuel Reservation Confirmed!\n\nStation: ${reservationData.station?.name}\nDate: ${formatDate(reservationData.date)}\nTime: ${reservationData.timeSlot}\nFuel: ${reservationData.fuelType} - ${reservationData.quantity}L\n\nPickup Code: ${numericCode}\n\nShow this code at the station.`;
 
   return (
     <div className="space-y-6">
@@ -56,7 +56,7 @@ export function ConfirmationScreen({ reservationData, onClose }: ConfirmationScr
             <MapPin className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-xs text-gray-500 mb-0.5">Station</p>
-              <p className="text-gray-900">{reservationData.station.name}</p>
+              <p className="text-gray-900">{reservationData.station?.name}</p>
               <p className="text-sm text-gray-600">{reservationData.station.distance} km away</p>
             </div>
           </div>

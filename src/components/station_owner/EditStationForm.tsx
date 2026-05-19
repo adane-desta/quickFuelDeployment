@@ -59,7 +59,7 @@ export function EditStationForm({ stationId, onSuccess }: EditStationFormProps) 
       if (stationData) {
         setStation(stationData);
         setFormData({
-          name: stationData.name,
+          name: stationData?.name,
           address: stationData.address,
           phone: stationData.phone,
           latitude: stationData.latitude?.toString() || '',
@@ -82,8 +82,8 @@ export function EditStationForm({ stationId, onSuccess }: EditStationFormProps) 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name || formData.name.length < 2) {
-      newErrors.name = 'Station name required (min 2 characters)';
+    if (!formData?.name || formData?.name.length < 2) {
+      newErrors?.name = 'Station name required (min 2 characters)';
     }
     if (!formData.address) {
       newErrors.address = 'Address required';
@@ -143,7 +143,7 @@ export function EditStationForm({ stationId, onSuccess }: EditStationFormProps) 
     setSaving(true);
     try {
       const success = await stationService.updateStation(stationId, {
-        name: formData.name,
+        name: formData?.name,
         address: formData.address,
         phone: formatEthiopianPhone(formData.phone),
         latitude: parseFloat(formData.latitude),
@@ -215,7 +215,7 @@ export function EditStationForm({ stationId, onSuccess }: EditStationFormProps) 
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold mb-2">Edit Station Details</h2>
-        <p className="text-gray-600">{station.name}</p>
+        <p className="text-gray-600">{station?.name}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -227,11 +227,11 @@ export function EditStationForm({ stationId, onSuccess }: EditStationFormProps) 
               <Label htmlFor="name">Station Name *</Label>
               <Input
                 id="name"
-                value={formData.name}
+                value={formData?.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={errors.name ? 'border-red-500' : ''}
+                className={errors?.name ? 'border-red-500' : ''}
               />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              {errors?.name && <p className="text-xs text-red-500 mt-1">{errors?.name}</p>}
             </div>
 
             <div>

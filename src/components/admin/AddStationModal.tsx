@@ -407,7 +407,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
               {loadingFuelTypes ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : (
                 fuelTypes.map(ft => (
                   <div key={ft.id} className="border p-4 rounded-lg">
-                    <Label className="font-semibold">{ft.name} ({ft.code})</Label>
+                    <Label className="font-semibold">{ft?.name} ({ft.code})</Label>
                     <Input type="number" min="0" step="100" value={formData.fuelStock[ft.id] || 0} onChange={e => handleFuelStockChange(ft.id, e.target.value)} placeholder="Liters" className="mt-1" />
                   </div>
                 ))

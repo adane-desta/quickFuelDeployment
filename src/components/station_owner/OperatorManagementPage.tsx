@@ -52,5 +52,5 @@ export function OperatorManagementPage() {
     );
   }
 
-  return <OperatorManagement stationId={station.id} stationName={station.name} />;
+  return <OperatorManagement stationId={station.id} stationName={station?.name} />;
 }

@@ -44,7 +44,7 @@ export function CarClassManagement() {
   const handleEdit = (carClass: CarClass) => {
     setEditingId(carClass.id);
     setEditForm({
-      name: carClass.name,
+      name: carClass?.name,
       description: carClass.description || '',
       weekly_fuel_limit: carClass.weekly_fuel_limit,
     });
@@ -56,7 +56,7 @@ export function CarClassManagement() {
       const { error } = await supabase
         .from('car_classes')
         .update({
-          name: editForm.name,
+          name: editForm?.name,
           description: editForm.description,
           weekly_fuel_limit: editForm.weekly_fuel_limit,
           updated_at: new Date().toISOString(),
@@ -87,14 +87,14 @@ export function CarClassManagement() {
   };
 
   const handleAdd = async () => {
-    if (!newClass.name || newClass.weekly_fuel_limit <= 0) {
+    if (!newClass?.name || newClass.weekly_fuel_limit <= 0) {
       toast.error('Name and valid limit required');
       return;
     }
     setSaving(true);
     try {
       const { error } = await supabase.from('car_classes').insert({
-        name: newClass.name,
+        name: newClass?.name,
         description: newClass.description,
         weekly_fuel_limit: newClass.weekly_fuel_limit,
       });
@@ -126,7 +126,7 @@ export function CarClassManagement() {
           <Card key={c.id} className="p-5">
             {editingId === c.id ? (
               <div className="space-y-3">
-                <Input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                <Input value={editForm?.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
                 <Input value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} />
                 <Input type="number" value={editForm.weekly_fuel_limit} onChange={e => setEditForm({...editForm, weekly_fuel_limit: parseInt(e.target.value)})} />
                 <div className="flex gap-2">
@@ -141,7 +141,7 @@ export function CarClassManagement() {
               <>
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-bold">{c.name}</h3>
+                    <h3 className="text-xl font-bold">{c?.name}</h3>
                     <p className="text-sm text-gray-500">{c.description || '—'}</p>
                   </div>
                   <div className="flex gap-2">
@@ -189,7 +189,7 @@ export function CarClassManagement() {
               <div>
                 <Label>Class Name *</Label>
                 <Input
-                  value={newClass.name}
+                  value={newClass?.name}
                   onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
                   placeholder="e.g., Sedan, SUV, Mini-Bus"
                   className="mt-1"

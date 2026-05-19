@@ -359,7 +359,7 @@ export const stationService = {
       const { data, error } = await supabase
         .from('stations')
         .insert({
-          name: stationData.name,
+          name: stationData?.name,
           address: stationData.address,
           phone: stationData.phone,
           latitude: stationData.latitude,

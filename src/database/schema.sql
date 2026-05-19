@@ -526,9 +526,9 @@ BEGIN
     activity_desc := 'User ' || COALESCE(NEW.full_name, 'Unknown') || ' was registered';
   ELSIF TG_TABLE_NAME = 'stations' THEN
     IF NEW.is_verified AND (OLD IS NULL OR NOT OLD.is_verified) THEN
-      activity_desc := 'Station ' || NEW.name || ' was verified';
+      activity_desc := 'Station ' || NEW?.name || ' was verified';
     ELSE
-      activity_desc := 'Station ' || NEW.name || ' was updated';
+      activity_desc := 'Station ' || NEW?.name || ' was updated';
     END IF;
   ELSIF TG_TABLE_NAME = 'fuel_prices' THEN
     activity_desc := NEW.fuel_type || ' price updated to ETB ' || NEW.price_per_liter;
@@ -688,7 +688,7 @@ SELECT
   u.full_name AS driver_name,
   u.phone AS driver_phone,
   u.plate_number,
-  s.name AS station_name,
+  s?.name AS station_name,
   s.address AS station_address,
   r.created_at
 FROM reservations r
@@ -701,7 +701,7 @@ WHERE r.status IN ('pending', 'confirmed')
 CREATE OR REPLACE VIEW station_dashboard_view AS
 SELECT 
   s.id AS station_id,
-  s.name AS station_name,
+  s?.name AS station_name,
   s.petrol_stock,
   s.diesel_stock,
   s.current_queue_length,
@@ -753,7 +753,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     s.id,
-    s.name,
+    s?.name,
     ROUND(
       (6371 * acos(
         cos(radians(user_lat)) * 

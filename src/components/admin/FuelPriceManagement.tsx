@@ -143,18 +143,18 @@ const fuelTypeColors: Record<FuelPrice['name'], { bg: string; border: string; ic
 
                 return (
                   <Card key={price.id} className="overflow-hidden">
-                      <div className={`p-4 border-b ${fuelTypeColors[price.name].bg} ${fuelTypeColors[price.name].border}`}>
+                      <div className={`p-4 border-b ${fuelTypeColors[price?.name].bg} ${fuelTypeColors[price?.name].border}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                              fuelTypeColors[price.name].icon
+                              fuelTypeColors[price?.name].icon
                             }`}
                           >
                             <DollarSign className="w-6 h-6 text-white" />
                           </div>
                           <div>
-                            <h3 className="text-gray-900">{price.name}</h3>
+                            <h3 className="text-gray-900">{price?.name}</h3>
                             <p className="text-xs text-gray-500">Price per liter</p>
                           </div>
                         </div>
