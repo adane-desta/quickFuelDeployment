@@ -56,7 +56,7 @@ export function StationSelection({ station, onNext }: StationSelectionProps) {
               <Clock className="w-4 h-4 text-gray-500" />
               <span className="text-xs text-gray-500">Wait Time</span>
             </div>
-            <p className="text-gray-900">~{station.waitTime} min</p>
+            <p className="text-gray-900">~{station?.waitTime} min</p>
           </div>
 
           <div className="bg-white rounded-lg p-3">

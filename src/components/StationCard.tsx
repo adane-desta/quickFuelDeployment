@@ -31,7 +31,7 @@ export function StationCard({ station, onReserve }: StationCardProps) {
   const availableFuels = station.availableFuels || 
     (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
 
-  const waitTime = station.waitTime || getWaitTimeFromQueue(station?.queueLength);
+  const waitTime = station?.waitTime || getWaitTimeFromQueue(station?.queueLength);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
