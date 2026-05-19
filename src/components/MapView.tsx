@@ -63,7 +63,7 @@ export function MapView({ stations, userLocation, onReserve }: MapViewProps) {
         <div class="p-2 min-w-[220px]">
           <h3 class="font-bold text-gray-900">${station?.name}</h3>
           <p class="text-sm text-gray-600">${station.address || 'Address not available'}</p>
-          <p class="text-sm text-gray-600 mt-1">Distance: ${station.distance ? station.distance.toFixed(1) : '?'} km</p>
+          <p class="text-sm text-gray-600 mt-1">Distance: ${station?.distance ? station?.distance.toFixed(1) : '?'} km</p>
           <p class="text-sm text-gray-600">Travel time: ~${station.travelTime || '?'} min</p>
           <div class="flex flex-wrap gap-1 mt-2">
             ${station.availableFuels?.map(fuel => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${fuel}</span>`).join('') || '<span class="text-xs text-gray-500">No fuel available</span>'}

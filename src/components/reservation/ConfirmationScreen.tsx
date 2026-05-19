@@ -57,7 +57,7 @@ export function ConfirmationScreen({ reservationData, onClose }: ConfirmationScr
             <div className="flex-1">
               <p className="text-xs text-gray-500 mb-0.5">Station</p>
               <p className="text-gray-900">{reservationData.station?.name}</p>
-              <p className="text-sm text-gray-600">{reservationData.station.distance} km away</p>
+              <p className="text-sm text-gray-600">{reservationData.station?.distance} km away</p>
             </div>
           </div>
 

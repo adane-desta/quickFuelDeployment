@@ -59,7 +59,7 @@ export function ReportQueueModal({ stations, onClose }: ReportQueueModalProps) {
                 >
                   <option value="">Choose a station...</option>
                   {stations.map(s => (
-                    <option key={s.id} value={s.id}>{s?.name} ({s.distance} km)</option>
+                    <option key={s.id} value={s.id}>{s?.name} ({s?.distance} km)</option>
                   ))}
                 </select>
               </div>
