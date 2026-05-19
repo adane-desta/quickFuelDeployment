@@ -60,12 +60,12 @@ export function FuelSelection({
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handleFuelTypeChange('Petrol')}
-            disabled={!station?.petrolAvailable}
+            disabled={!station.petrolAvailable}
             className={`p-4 rounded-lg border-2 transition-all ${
               localFuelType === 'Petrol'
                 ? 'border-blue-600 bg-blue-50'
                 : 'border-gray-200 hover:border-gray-300'
-            } ${!station?.petrolAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${!station.petrolAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="text-center">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -73,7 +73,7 @@ export function FuelSelection({
               </div>
               <p className="text-gray-900 mb-1">Petrol</p>
               <p className="text-xs text-gray-500">ETB {pricePerLiter.Petrol}/L</p>
-              {!station?.petrolAvailable && (
+              {!station.petrolAvailable && (
                 <p className="text-xs text-red-600 mt-1">Unavailable</p>
               )}
             </div>
@@ -81,12 +81,12 @@ export function FuelSelection({
 
           <button
             onClick={() => handleFuelTypeChange('Diesel')}
-            disabled={!station?.dieselAvailable}
+            disabled={!station.dieselAvailable}
             className={`p-4 rounded-lg border-2 transition-all ${
               localFuelType === 'Diesel'
                 ? 'border-purple-600 bg-purple-50'
                 : 'border-gray-200 hover:border-gray-300'
-            } ${!station?.dieselAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${!station.dieselAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="text-center">
               <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -94,7 +94,7 @@ export function FuelSelection({
               </div>
               <p className="text-gray-900 mb-1">Diesel</p>
               <p className="text-xs text-gray-500">ETB {pricePerLiter.Diesel}/L</p>
-              {!station?.dieselAvailable && (
+              {!station.dieselAvailable && (
                 <p className="text-xs text-red-600 mt-1">Unavailable</p>
               )}
             </div>

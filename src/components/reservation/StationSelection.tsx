@@ -65,10 +65,10 @@ export function StationSelection({ station, onNext }: StationSelectionProps) {
               <span className="text-xs text-gray-500">Available</span>
             </div>
             <div className="flex gap-1">
-              {station?.petrolAvailable && (
+              {station.petrolAvailable && (
                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Petrol</span>
               )}
-              {station?.dieselAvailable && (
+              {station.dieselAvailable && (
                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Diesel</span>
               )}
             </div>
