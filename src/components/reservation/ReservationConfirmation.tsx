@@ -7,13 +7,6 @@ import React, { useState, useEffect } from 'react';
 import {
   CheckCircle,
   Copy,
-  Download,
-  Navigation,
-  Calendar,
-  Clock,
-  Fuel,
-  MapPin,
-  DollarSign,
 } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase/client';
@@ -23,11 +16,8 @@ import {
   notifyError,
 } from '../../lib/utils/notifications';
 
-import type { Reservation } from '../../types/advanced';
-
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 
 interface ReservationConfirmationProps {
   reservationId: string;
@@ -54,6 +44,8 @@ export function ReservationConfirmation({
   */
   useEffect(() => {
 
+    let mounted = true;
+
     const fetchReservation = async () => {
 
       console.log(
@@ -64,21 +56,25 @@ export function ReservationConfirmation({
       if (!reservationId) {
 
         console.error(
-          'No reservationId provided'
+          'No reservationId'
         );
 
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
 
         return;
       }
 
       try {
 
-        setLoading(true);
+        if (mounted) {
+          setLoading(true);
+        }
 
         /*
           =====================================
-          SIMPLE QUERY ONLY
+          GET RESERVATION
           =====================================
         */
 
@@ -89,39 +85,40 @@ export function ReservationConfirmation({
           .from('reservations')
           .select('*')
           .eq('id', reservationId)
-          .single();
+          .maybeSingle();
+
+        console.log(
+          'Reservation query result:',
+          reservationData,
+          reservationError
+        );
 
         if (reservationError) {
+          throw reservationError;
+        }
+
+        if (!reservationData) {
 
           console.error(
-            'Reservation fetch error:',
-            reservationError
+            'Reservation not found'
           );
 
-          notifyError(
-            'Failed to load reservation',
-            reservationError
-          );
-
-          setLoading(false);
+          if (mounted) {
+            setReservation(null);
+          }
 
           return;
         }
 
-        console.log(
-          'Reservation data:',
-          reservationData
-        );
-
         /*
           =====================================
-          FETCH STATION
+          GET STATION
           =====================================
         */
 
         let stationData = null;
 
-        if (reservationData?.station_id) {
+        if (reservationData.station_id) {
 
           const {
             data,
@@ -129,56 +126,52 @@ export function ReservationConfirmation({
             .from('stations')
             .select(`
               name,
-              address,
-              phone,
-              latitude,
-              longitude
+              address
             `)
             .eq(
               'id',
               reservationData.station_id
             )
-            .single();
+            .maybeSingle();
 
           stationData = data;
         }
 
         /*
           =====================================
-          FETCH FUEL TYPE
+          GET FUEL TYPE
           =====================================
         */
 
         let fuelTypeData = null;
 
-        if (reservationData?.fuel_type_id) {
+        if (reservationData.fuel_type_id) {
 
           const {
             data,
           } = await supabase
             .from('fuel_types')
             .select(`
-              name,
-              code
+              name
             `)
             .eq(
               'id',
               reservationData.fuel_type_id
             )
-            .single();
+            .maybeSingle();
 
           fuelTypeData = data;
         }
 
         /*
           =====================================
-          FETCH TIME SLOT
+          GET TIME SLOT
           =====================================
         */
 
         let timeSlotData = null;
 
-        if (reservationData?.time_slot_id) {
+        if (reservationData.time_slot_id) {
 
           const {
             data,
@@ -193,22 +186,24 @@ export function ReservationConfirmation({
               'id',
               reservationData.time_slot_id
             )
-            .single();
+            .maybeSingle();
 
           timeSlotData = data;
         }
 
         /*
           =====================================
-          BUILD FINAL OBJECT
+          FINAL OBJECT
           =====================================
         */
 
         const finalReservation = {
+
           ...reservationData,
 
           station_name:
-            stationData?.name || 'Unknown Station',
+            stationData?.name ||
+            'Unknown Station',
 
           station_address:
             stationData?.address || '',
@@ -231,7 +226,9 @@ export function ReservationConfirmation({
           finalReservation
         );
 
-        setReservation(finalReservation);
+        if (mounted) {
+          setReservation(finalReservation);
+        }
 
       } catch (error) {
 
@@ -251,17 +248,28 @@ export function ReservationConfirmation({
           'Reservation loading finished'
         );
 
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchReservation();
 
+    return () => {
+
+      console.log(
+        'ReservationConfirmation unmounted'
+      );
+
+      mounted = false;
+    };
+
   }, [reservationId]);
 
   /*
     =========================================
-    COPY PICKUP CODE
+    COPY CODE
     =========================================
   */
   const handleCopyPickupCode = () => {
@@ -281,22 +289,10 @@ export function ReservationConfirmation({
 
   /*
     =========================================
-    DOWNLOAD RECEIPT
-    =========================================
-  */
-  const handleDownloadReceipt = () => {
-
-    notifySuccess(
-      'Receipt download started'
-    );
-  };
-
-  /*
-    =========================================
     LOADING
     =========================================
   */
-  if (loading && !reservation) {
+  if (loading) {
 
     return (
       <div className="flex items-center justify-center py-12">
@@ -319,7 +315,7 @@ export function ReservationConfirmation({
     NOT FOUND
     =========================================
   */
-  if (!loading && !reservation) {
+  if (!reservation) {
 
     return (
       <div className="text-center py-12">
@@ -333,13 +329,16 @@ export function ReservationConfirmation({
   }
 
   return (
+
     <div className="space-y-6">
 
       {/* SUCCESS */}
       <Card className="p-6 text-center border-2 border-green-500 bg-green-50">
 
         <div className="inline-flex items-center justify-center size-16 bg-green-500 rounded-full mb-4">
+
           <CheckCircle className="size-8 text-white" />
+
         </div>
 
         <h2 className="text-2xl font-bold text-green-900 mb-2">
@@ -349,6 +348,7 @@ export function ReservationConfirmation({
         <p className="text-green-700">
           Your fuel has been reserved.
         </p>
+
       </Card>
 
       {/* PICKUP CODE */}
@@ -363,7 +363,7 @@ export function ReservationConfirmation({
           <div className="inline-block p-6 bg-white rounded-2xl shadow-lg mb-4">
 
             <p className="text-5xl font-bold font-mono tracking-wider text-primary">
-              {reservation?.pickup_code || '------'}
+              {reservation.pickup_code}
             </p>
 
           </div>
@@ -377,6 +377,7 @@ export function ReservationConfirmation({
           </Button>
 
         </div>
+
       </Card>
 
       {/* DETAILS */}
@@ -394,7 +395,7 @@ export function ReservationConfirmation({
             </p>
 
             <p className="font-medium">
-              {reservation?.station_name}
+              {reservation.station_name}
             </p>
           </div>
 
@@ -404,7 +405,7 @@ export function ReservationConfirmation({
             </p>
 
             <p className="font-medium">
-              {reservation?.fuel_type_name}
+              {reservation.fuel_type_name}
             </p>
           </div>
 
@@ -414,7 +415,7 @@ export function ReservationConfirmation({
             </p>
 
             <p className="font-medium">
-              {reservation?.quantity} Liters
+              {reservation.quantity} Liters
             </p>
           </div>
 
@@ -424,11 +425,12 @@ export function ReservationConfirmation({
             </p>
 
             <p className="font-medium text-green-600">
-              ETB {reservation?.total_price}
+              ETB {reservation.total_price}
             </p>
           </div>
 
         </div>
+
       </Card>
 
       {/* ACTIONS */}
@@ -452,6 +454,7 @@ export function ReservationConfirmation({
         </Button>
 
       </div>
+
     </div>
   );
 }
