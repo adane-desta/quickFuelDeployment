@@ -29,7 +29,91 @@ export function ReservationConfirmation({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadReservation();
+
+    const fetchReservation = async () => {
+  
+      console.log(
+        'Fetching reservation:',
+        reservationId
+      );
+  
+      if (!reservationId) {
+  
+        console.error(
+          'No reservationId provided'
+        );
+  
+        setLoading(false);
+  
+        return;
+      }
+  
+      try {
+  
+        setLoading(true);
+  
+        /*
+          ============================
+          SIMPLE QUERY ONLY
+          ============================
+        */
+  
+        const { data, error } =
+          await supabase
+            .from('reservations')
+            .select('*')
+            .eq('id', reservationId)
+            .single();
+  
+        console.log(
+          'Reservation fetch result:',
+          data
+        );
+  
+        if (error) {
+  
+          console.error(
+            'Reservation fetch error:',
+            error
+          );
+  
+          setLoading(false);
+  
+          return;
+        }
+  
+        if (!data) {
+  
+          console.error(
+            'No reservation found'
+          );
+  
+          setLoading(false);
+  
+          return;
+        }
+  
+        setReservation(data);
+  
+      } catch (error) {
+  
+        console.error(
+          'Fetch reservation failed:',
+          error
+        );
+  
+      } finally {
+  
+        console.log(
+          'Reservation loading finished'
+        );
+  
+        setLoading(false);
+      }
+    };
+  
+    fetchReservation();
+  
   }, [reservationId]);
 
   const loadReservation = async () => {
