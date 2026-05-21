@@ -28,8 +28,8 @@ export function StationCard({ station, onReserve }: StationCardProps) {
     }
   };
 
-  const availableFuels = station.availableFuels || 
-    (station.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
+  const availableFuels = station?.availableFuels || 
+    (station?.petrolAvailable ? ['Petrol'] : []).concat(station.dieselAvailable ? ['Diesel'] : []);
 
   const waitTime = station?.waitTime || getWaitTimeFromQueue(station?.queueLength);
 

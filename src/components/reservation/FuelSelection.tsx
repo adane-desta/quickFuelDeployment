@@ -60,7 +60,7 @@ export function FuelSelection({
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handleFuelTypeChange('Petrol')}
-            disabled={!station.petrolAvailable}
+            disabled={!station?.petrolAvailable}
             className={`p-4 rounded-lg border-2 transition-all ${
               localFuelType === 'Petrol'
                 ? 'border-blue-600 bg-blue-50'
@@ -73,7 +73,7 @@ export function FuelSelection({
               </div>
               <p className="text-gray-900 mb-1">Petrol</p>
               <p className="text-xs text-gray-500">ETB {pricePerLiter.Petrol}/L</p>
-              {!station.petrolAvailable && (
+              {!station?.petrolAvailable && (
                 <p className="text-xs text-red-600 mt-1">Unavailable</p>
               )}
             </div>
