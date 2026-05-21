@@ -152,3 +152,4 @@ export function ConfirmationScreen({ reservationData, onClose }: ConfirmationScr
     </div>
   );
 }
+
