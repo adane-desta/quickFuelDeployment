@@ -66,10 +66,15 @@ export function ReservationConfirmation({
 
   const handleCopyPickupCode = () => {
     if (reservation) {
-      navigator.clipboard.writeText(reservation.pickup_code);
+      navigator.clipboard.writeText(reservation?.pickup_code);
       notifySuccess('Pickup code copied to clipboard!');
     }
   };
+
+  console.log('ReservationConfirmation render ✅✅✅✅✅✅✅✅✅✅✅✅', {
+    loading,
+    reservation,
+  });
 
   const handleDownloadReceipt = () => {
     notifySuccess('Receipt download started');
@@ -78,19 +83,29 @@ export function ReservationConfirmation({
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-64" />
-        <Skeleton className="h-48" />
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+  
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4" />
+  
+          <p className="text-gray-600">
+            Loading reservation...
+          </p>
+  
+        </div>
       </div>
     );
   }
-
+  
   if (!reservation) {
     return (
-      <Card className="p-8 text-center">
-        <p className="text-gray-600">Failed to load reservation details</p>
-        <Button onClick={onStartOver} className="mt-4">Start Over</Button>
-      </Card>
+      <div className="text-center py-12">
+  
+        <p className="text-red-600 font-medium">
+          Reservation not found
+        </p>
+  
+      </div>
     );
   }
 
@@ -115,7 +130,7 @@ export function ReservationConfirmation({
           <p className="text-sm text-gray-600 mb-2">Your Pickup Code</p>
           <div className="inline-block p-6 bg-white rounded-2xl shadow-lg mb-4">
             <p className="text-5xl font-bold font-mono tracking-wider text-primary">
-              {reservation.pickup_code}
+              {reservation?.pickup_code}
             </p>
           </div>
           <p className="text-sm text-gray-500">
@@ -163,7 +178,7 @@ export function ReservationConfirmation({
             <MapPin className="size-5 text-gray-400 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-gray-500">Station</p>
-              <p className="font-medium text-lg">{reservation.station_name}</p>
+              <p className="font-medium text-lg">{reservation?.station_name}</p>
               <Button
                 variant="link"
                 className="p-0 h-auto text-sm text-primary"
@@ -181,7 +196,7 @@ export function ReservationConfirmation({
             <div className="flex-1">
               <p className="text-sm text-gray-500">Reservation Time</p>
               <p className="font-medium">
-                {reservation.slot_date && new Date(reservation.slot_date).toLocaleDateString('en-US', {
+                {reservation?.slot_date && new Date(reservation?.slot_date).toLocaleDateString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
@@ -191,7 +206,7 @@ export function ReservationConfirmation({
               <div className="flex items-center gap-2 mt-1">
                 <Clock className="size-4 text-gray-400" />
                 <p className="text-sm text-gray-600">
-                  {reservation.slot_start_time} - {reservation.slot_end_time}
+                  {reservation?.slot_start_time} - {reservation?.slot_end_time}
                 </p>
               </div>
             </div>
@@ -202,8 +217,8 @@ export function ReservationConfirmation({
             <Fuel className="size-5 text-gray-400 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-gray-500">Fuel Details</p>
-              <p className="font-medium">{reservation.fuel_type_name}</p>
-              <p className="text-sm text-gray-600">{reservation.quantity} Liters</p>
+              <p className="font-medium">{reservation?.fuel_type_name}</p>
+              <p className="text-sm text-gray-600">{reservation?.quantity} Liters</p>
             </div>
           </div>
 
@@ -213,12 +228,12 @@ export function ReservationConfirmation({
             <div className="flex-1">
               <p className="text-sm text-gray-500">Total Amount Paid</p>
               <p className="font-semibold text-2xl text-green-600">
-                ETB {reservation.total_price.toFixed(2)}
+                ETB {reservation?.total_price.toFixed(2)}
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <Badge className="bg-green-600">Paid</Badge>
                 <span className="text-xs text-gray-500">
-                  {reservation.payment_method}
+                  {reservation?.payment_method}
                 </span>
               </div>
             </div>
@@ -236,7 +251,7 @@ export function ReservationConfirmation({
           </li>
           <li className="flex gap-2">
             <span className="text-blue-600">•</span>
-            <span>Show your pickup code ({reservation.pickup_code}) to the operator</span>
+            <span>Show your pickup code ({reservation?.pickup_code}) to the operator</span>
           </li>
           <li className="flex gap-2">
             <span className="text-blue-600">•</span>
@@ -260,10 +275,10 @@ export function ReservationConfirmation({
       </div>
 
       {/* Expiration Warning */}
-      {reservation.expires_at && (
+      {reservation?.expires_at && (
         <p className="text-center text-sm text-gray-500">
           This reservation expires at{' '}
-          {new Date(reservation.expires_at).toLocaleString('en-US', {
+          {new Date(reservation?.expires_at).toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
