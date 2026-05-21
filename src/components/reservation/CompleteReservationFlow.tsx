@@ -17,7 +17,7 @@ import { StationSelection } from './StationSelection';
 import { TimeSlotSelector } from './TimeSlotSelector';
 import { FuelTypeSelector } from './FuelTypeSelector';
 import { PaymentProcessor } from './PaymentProcessor';
-import { ReservationConfirmation } from './ReservationConfirmation'; // Fixed version below
+import { ReservationConfirmation } from './ReservationConfirmation';
 
 interface CompleteReservationFlowProps {
   station?: Station | null;
@@ -43,7 +43,7 @@ export function CompleteReservationFlow({
 
   const [searchParams] = useSearchParams();
   const paymentStatus = searchParams.get('payment');
-  const urlReservationId = searchParams.get('reservation_id'); // Optional from Chapa callback
+  const urlReservationId = searchParams.get('reservation_id'); // ✅ Read from URL
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +52,7 @@ export function CompleteReservationFlow({
   const [creating, setCreating] = useState(false);
 
   const [currentStep, setCurrentStep] = useState(() => {
-    if (paymentStatus === 'success' || urlReservationId) return 5;
+    if (paymentStatus === 'success' && urlReservationId) return 5;
     if (initialStation) return 2;
     return 1;
   });
@@ -82,7 +82,7 @@ export function CompleteReservationFlow({
     fetchDriverPref();
   }, [user]);
 
-  // Restore flow after Chapa redirect
+  // Restore flow after Chapa redirect – now prioritises URL reservationId
   useEffect(() => {
     const restoreFlow = async () => {
       if (paymentStatus !== 'success') return;
@@ -92,15 +92,27 @@ export function CompleteReservationFlow({
       setRestoreError(null);
 
       try {
+        // ✅ First, check if we have reservationId from URL
+        if (urlReservationId) {
+          console.log('Using reservationId from URL:', urlReservationId);
+          setReservationId(urlReservationId);
+          setCurrentStep(5);
+          notifications.reservation.created('Reservation confirmed!');
+          // Clean URL parameters to avoid re-trigger
+          window.history.replaceState({}, '', window.location.pathname);
+          setRestoringState(false);
+          return;
+        }
+
+        // ❌ No URL ID, try localStorage
         const savedFlow = localStorage.getItem(STORAGE_KEY);
         if (!savedFlow) {
           throw new Error('No saved reservation flow found. Please restart the reservation.');
         }
 
         const parsed = JSON.parse(savedFlow);
-        console.log('Restored reservation flow:', parsed);
+        console.log('Restored from localStorage:', parsed);
 
-        // Validate essential data
         if (!parsed.reservationId) {
           throw new Error('Saved reservation ID missing.');
         }
@@ -113,21 +125,20 @@ export function CompleteReservationFlow({
 
         notifications.reservation.created('Reservation confirmed!');
 
-        // Clean up storage after successful restore
+        // Clean up
         localStorage.removeItem(STORAGE_KEY);
-        // Remove payment param from URL without reload
         window.history.replaceState({}, '', window.location.pathname);
       } catch (error: any) {
         console.error('Restore failed:', error);
         setRestoreError(error.message || 'Failed to restore reservation. Please make a new reservation.');
-        setCurrentStep(1); // Go back to start instead of showing infinite spinner
+        setCurrentStep(1); // Reset to station selection
       } finally {
         setRestoringState(false);
       }
     };
 
     restoreFlow();
-  }, [paymentStatus]);
+  }, [paymentStatus, urlReservationId]); // ✅ Added urlReservationId as dependency
 
   // Scroll to top on step change
   useEffect(() => {
@@ -175,7 +186,7 @@ export function CompleteReservationFlow({
 
       if (!resId) throw new Error('Reservation creation failed');
 
-      // Save flow for post-payment restore
+      // ✅ Save to localStorage as fallback, but also pass via URL later
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -213,6 +224,7 @@ export function CompleteReservationFlow({
     setFuelData(null);
     setReservationId(null);
     setRestoreError(null);
+    // Also remove any error state
   };
 
   // Loading / Error states
@@ -351,7 +363,7 @@ export function CompleteReservationFlow({
             />
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 5 && reservationId && (
             <ReservationConfirmation
               key={reservationId}
               reservationId={reservationId}
