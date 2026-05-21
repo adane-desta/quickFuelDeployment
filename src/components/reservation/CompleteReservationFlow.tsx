@@ -1,3 +1,4 @@
+// src/components/reservation/CompleteReservationFlow.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Check, X } from 'lucide-react';
@@ -16,7 +17,7 @@ import { StationSelection } from './StationSelection';
 import { TimeSlotSelector } from './TimeSlotSelector';
 import { FuelTypeSelector } from './FuelTypeSelector';
 import { PaymentProcessor } from './PaymentProcessor';
-import { ReservationConfirmation } from './ReservationConfirmation';
+import { ReservationConfirmation } from './ReservationConfirmation'; // Fixed version below
 
 interface CompleteReservationFlowProps {
   station?: Station | null;
@@ -41,247 +42,106 @@ export function CompleteReservationFlow({
   const { user } = useAuth();
 
   const [searchParams] = useSearchParams();
+  const paymentStatus = searchParams.get('payment');
+  const urlReservationId = searchParams.get('reservation_id'); // Optional from Chapa callback
 
-  const paymentStatus =
-    searchParams.get('payment');
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const contentRef =
-    useRef<HTMLDivElement>(null);
+  const [restoringState, setRestoringState] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  const [restoringState, setRestoringState] =
-    useState(false);
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (paymentStatus === 'success' || urlReservationId) return 5;
+    if (initialStation) return 2;
+    return 1;
+  });
 
-  const [creating, setCreating] =
-    useState(false);
+  const [selectedStation, setSelectedStation] = useState<Station | null>(initialStation);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [preferredFuelId, setPreferredFuelId] = useState<string | null>(null);
+  const [fuelData, setFuelData] = useState<{
+    fuelTypeId: string;
+    quantity: number;
+    pricePerLiter: number;
+    totalPrice: number;
+  } | null>(null);
+  const [reservationId, setReservationId] = useState<string | null>(urlReservationId || null);
 
-  const [currentStep, setCurrentStep] =
-    useState(() => {
-      if (paymentStatus === 'success') {
-        return 5;
-      }
-
-      if (initialStation) {
-        return 2;
-      }
-
-      return 1;
-    });
-
-  const [selectedStation, setSelectedStation] =
-    useState<Station | null>(
-      initialStation
-    );
-
-  const [selectedTimeSlot, setSelectedTimeSlot] =
-    useState<TimeSlot | null>(null);
-
-  const [preferredFuelId, setPreferredFuelId] =
-    useState<string | null>(null);
-
-  const [fuelData, setFuelData] =
-    useState<{
-      fuelTypeId: string;
-      quantity: number;
-      pricePerLiter: number;
-      totalPrice: number;
-    } | null>(null);
-
-  const [reservationId, setReservationId] =
-    useState<string | null>(null);
-
-  /*
-    =========================================
-    FETCH DRIVER PREFERRED FUEL
-    =========================================
-  */
+  // Fetch driver's preferred fuel
   useEffect(() => {
     const fetchDriverPref = async () => {
       if (!user) return;
-
       const { data } = await supabase
         .from('users')
         .select('preferred_fuel_type_id')
         .eq('id', user.id)
         .single();
-
-      setPreferredFuelId(
-        data?.preferred_fuel_type_id || null
-      );
+      setPreferredFuelId(data?.preferred_fuel_type_id || null);
     };
-
     fetchDriverPref();
   }, [user]);
 
-  /*
-    =========================================
-    RESTORE FLOW AFTER CHAPA REDIRECT
-    =========================================
-  */
-    useEffect(() => {
-      const restoreFlow = async () => {
-    
-        if (paymentStatus !== 'success') {
-          return;
-        }
-
-        console.log(
-          'Starting reservation restore...'
-        );
-    
-        setRestoringState(true);
-    
-        try {
-    
-          const savedFlow =
-            localStorage.getItem(
-              STORAGE_KEY
-            );
-    
-          if (!savedFlow) {
-    
-            console.error(
-              'No saved reservation flow found'
-            );
-    
-            setRestoringState(false);
-    
-            return;
-          }
-    
-          const parsed =
-            JSON.parse(savedFlow);
-    
-          console.log(
-            'Restored reservation flow:',
-            parsed
-          );
-    
-          /*
-            ==============================
-            RESTORE STATE
-            ==============================
-          */
-    
-          setReservationId(
-            parsed.reservationId || null
-          );
-    
-          setSelectedStation(
-            parsed.station || null
-          );
-    
-          setSelectedTimeSlot(
-            parsed.timeSlot || null
-          );
-    
-          setFuelData(
-            parsed.fuelData || null
-          );
-    
-          /*
-            ==============================
-            MOVE TO CONFIRMATION
-            ==============================
-          */
-    
-          setCurrentStep(5);
-    
-          notifications.reservation.created(
-            'Reservation confirmed!'
-          );
-    
-          console.log(
-            'Reservation restore completed successfully'
-          );
-    
-          /*
-            ==============================
-            CLEANUP
-            ==============================
-          */
-    
-          setTimeout(() => {
-    
-            setRestoringState(false);
-    
-            localStorage.removeItem(
-              STORAGE_KEY
-            );
-    
-            window.history.replaceState(
-              {},
-              '',
-              window.location.pathname
-            );
-    
-          }, 500);
-    
-        } catch (error) {
-    
-          console.error(
-            'Failed to restore reservation flow:',
-            error
-          );
-    
-          setRestoringState(false);
-        }
-      };
-    
-      restoreFlow();
-    
-    }, [paymentStatus]);
-
-  /*
-    =========================================
-    SCROLL TO TOP ON STEP CHANGE
-    =========================================
-  */
+  // Restore flow after Chapa redirect
   useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTop = 0;
-    }
+    const restoreFlow = async () => {
+      if (paymentStatus !== 'success') return;
+
+      console.log('Starting reservation restore...');
+      setRestoringState(true);
+      setRestoreError(null);
+
+      try {
+        const savedFlow = localStorage.getItem(STORAGE_KEY);
+        if (!savedFlow) {
+          throw new Error('No saved reservation flow found. Please restart the reservation.');
+        }
+
+        const parsed = JSON.parse(savedFlow);
+        console.log('Restored reservation flow:', parsed);
+
+        // Validate essential data
+        if (!parsed.reservationId) {
+          throw new Error('Saved reservation ID missing.');
+        }
+
+        setReservationId(parsed.reservationId);
+        setSelectedStation(parsed.station || null);
+        setSelectedTimeSlot(parsed.timeSlot || null);
+        setFuelData(parsed.fuelData || null);
+        setCurrentStep(5);
+
+        notifications.reservation.created('Reservation confirmed!');
+
+        // Clean up storage after successful restore
+        localStorage.removeItem(STORAGE_KEY);
+        // Remove payment param from URL without reload
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (error: any) {
+        console.error('Restore failed:', error);
+        setRestoreError(error.message || 'Failed to restore reservation. Please make a new reservation.');
+        setCurrentStep(1); // Go back to start instead of showing infinite spinner
+      } finally {
+        setRestoringState(false);
+      }
+    };
+
+    restoreFlow();
+  }, [paymentStatus]);
+
+  // Scroll to top on step change
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [currentStep]);
 
-  /*
-    =========================================
-    DEBUGGING
-    =========================================
-  */
-    useEffect(() => {
-
-      console.log('RESTORE STATE DEBUG', {
-        restoringState,
-        currentStep,
-        reservationId,
-        selectedStation,
-      });
-    
-    }, [
-      restoringState,
-      currentStep,
-      reservationId,
-      selectedStation,
-    ]);
-
-  /*
-    =========================================
-    HANDLERS
-    =========================================
-  */
-
-  const handleStationSelect = (
-    station: Station
-  ) => {
+  // Handlers
+  const handleStationSelect = (station: Station) => {
     setSelectedStation(station);
-
     setCurrentStep(2);
   };
 
-  const handleTimeSlotSelect = (
-    slot: TimeSlot
-  ) => {
+  const handleTimeSlotSelect = (slot: TimeSlot) => {
     setSelectedTimeSlot(slot);
-
     setCurrentStep(3);
   };
 
@@ -291,190 +151,109 @@ export function CompleteReservationFlow({
     pricePerLiter: number,
     totalPrice: number
   ) => {
-    setFuelData({
-      fuelTypeId,
-      quantity,
-      pricePerLiter,
-      totalPrice,
-    });
+    setFuelData({ fuelTypeId, quantity, pricePerLiter, totalPrice });
   };
 
-  /*
-    =========================================
-    CREATE RESERVATION
-    =========================================
-  */
-  const handleProceedToPayment =
-    async () => {
-      if (
-        !user ||
-        !selectedStation ||
-        !selectedTimeSlot ||
-        !fuelData
-      ) {
-        notifyError(
-          'Missing required information'
-        );
+  const handleProceedToPayment = async () => {
+    if (!user || !selectedStation || !selectedTimeSlot || !fuelData) {
+      notifyError('Missing required information');
+      return;
+    }
 
-        return;
-      }
+    setCreating(true);
+    try {
+      const resId = await reservationService.createReservation(
+        {
+          station_id: selectedStation.id,
+          time_slot_id: selectedTimeSlot.id,
+          fuel_type_id: fuelData.fuelTypeId,
+          quantity: fuelData.quantity,
+          payment_method: 'Telebirr',
+        },
+        user.id
+      );
 
-      setCreating(true);
+      if (!resId) throw new Error('Reservation creation failed');
 
-      try {
-        const resId =
-          await reservationService.createReservation(
-            {
-              station_id:
-                selectedStation.id,
+      // Save flow for post-payment restore
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          reservationId: resId,
+          station: selectedStation,
+          timeSlot: selectedTimeSlot,
+          fuelData,
+        })
+      );
 
-              time_slot_id:
-                selectedTimeSlot.id,
-
-              fuel_type_id:
-                fuelData.fuelTypeId,
-
-              quantity:
-                fuelData.quantity,
-
-              payment_method:
-                'Telebirr',
-            },
-            user.id
-          );
-
-        if (!resId) {
-          throw new Error(
-            'Reservation creation failed'
-          );
-        }
-
-        /*
-          =================================
-          SAVE FLOW BEFORE REDIRECT
-          =================================
-        */
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            reservationId: resId,
-
-            station:
-              selectedStation,
-
-            timeSlot:
-              selectedTimeSlot,
-
-            fuelData,
-          })
-        );
-
-        console.log(
-          'Saved reservation flow'
-        );
-
-        setReservationId(resId);
-
-        setCurrentStep(4);
-
-      } catch (error: any) {
-        console.error(error);
-
-        notifyError(
-          'Failed to create reservation',
-          error
-        );
-      } finally {
-        setCreating(false);
-      }
-    };
+      setReservationId(resId);
+      setCurrentStep(4);
+    } catch (error: any) {
+      console.error(error);
+      notifyError('Failed to create reservation', error);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handlePaymentSuccess = () => {
     setCurrentStep(5);
-
-    notifications.reservation.created(
-      'Reservation confirmed!'
-    );
+    notifications.reservation.created('Reservation confirmed!');
   };
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(
-        (prev) => prev - 1
-      );
-    }
+    if (currentStep > 1) setCurrentStep((prev) => prev - 1);
   };
 
   const handleStartOver = () => {
-    localStorage.removeItem(
-      STORAGE_KEY
-    );
-
-    setCurrentStep(
-      initialStation ? 2 : 1
-    );
-
-    setSelectedStation(
-      initialStation || null
-    );
-
+    localStorage.removeItem(STORAGE_KEY);
+    setCurrentStep(initialStation ? 2 : 1);
+    setSelectedStation(initialStation || null);
     setSelectedTimeSlot(null);
-
     setFuelData(null);
-
     setReservationId(null);
+    setRestoreError(null);
   };
 
-  /*
-    =========================================
-    LOADING SCREEN
-    =========================================
-  */
-    if (
-      restoringState &&
-      currentStep !== 5
-    ) {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
-          <div className="flex flex-col items-center gap-4">
-    
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-    
-            <p className="text-gray-600 font-medium">
-              Restoring reservation...
-            </p>
-    
-          </div>
+  // Loading / Error states
+  if (restoringState) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+          <p className="text-gray-600 font-medium">Restoring reservation...</p>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-  const progress =
-    (currentStep / STEPS.length) * 100;
+  if (restoreError) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl max-w-md w-full p-6 text-center">
+          <div className="text-red-600 text-lg mb-3">⚠️</div>
+          <p className="text-gray-800 mb-4">{restoreError}</p>
+          <Button onClick={handleStartOver} className="w-full">
+            Start New Reservation
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const progress = (currentStep / STEPS.length) * 100;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 animate-in fade-in">
       <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom max-h-[90vh] flex flex-col">
-
         {/* HEADER */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-
           <div>
-            <h2 className="text-gray-900">
-              Reserve Fuel
-            </h2>
-
-            <p className="text-sm text-gray-600">
-              Complete your reservation
-            </p>
+            <h2 className="text-gray-900">Reserve Fuel</h2>
+            <p className="text-sm text-gray-600">Complete your reservation</p>
           </div>
-
           <button
-            onClick={
-              onClose
-                ? onClose
-                : () => navigate(-1)
-            }
+            onClick={onClose ? onClose : () => navigate(-1)}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X className="w-6 h-6 text-gray-600" />
@@ -483,54 +262,25 @@ export function CompleteReservationFlow({
 
         {/* STEP INDICATOR */}
         <div className="bg-white px-6 py-2 border-b">
-
           <div className="flex items-center gap-4 mb-2">
-
-            {currentStep > 1 &&
-              currentStep < 5 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleBack}
-                  disabled={creating}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-              )}
-
+            {currentStep > 1 && currentStep < 5 && (
+              <Button variant="ghost" size="sm" onClick={handleBack} disabled={creating}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            )}
             <div className="flex-1">
-              <h1 className="text-xl font-bold">
-                {STEPS[currentStep - 1]
-                  ?.name || ''}
-              </h1>
-
-              <p className="text-sm text-gray-600">
-                {STEPS[currentStep - 1]
-                  ?.description || ''}
-              </p>
+              <h1 className="text-xl font-bold">{STEPS[currentStep - 1]?.name || ''}</h1>
+              <p className="text-sm text-gray-600">{STEPS[currentStep - 1]?.description || ''}</p>
             </div>
           </div>
-
           <div className="space-y-2">
-
             <div className="flex justify-between text-xs text-gray-600">
-              <span>
-                Step {currentStep} of{' '}
-                {STEPS.length}
-              </span>
-
-              <span>
-                {Math.round(progress)}%
-              </span>
+              <span>Step {currentStep} of {STEPS.length}</span>
+              <span>{Math.round(progress)}%</span>
             </div>
-
-            <Progress
-              value={progress}
-              className="h-2"
-            />
+            <Progress value={progress} className="h-2" />
           </div>
-
           <div className="flex justify-between mt-4">
             {STEPS.map((step) => (
               <div
@@ -543,151 +293,74 @@ export function CompleteReservationFlow({
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
-                {step.id < currentStep ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  step.id
-                )}
+                {step.id < currentStep ? <Check className="w-4 h-4" /> : step.id}
               </div>
             ))}
           </div>
         </div>
 
         {/* CONTENT */}
-        <div
-          ref={contentRef}
-          className="flex-1 overflow-y-auto px-6 py-6"
-        >
+        <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6">
+          {currentStep === 1 && !initialStation && (
+            <StationSelection onSelectStation={handleStationSelect} />
+          )}
 
-          {/* STEP 1 */}
-          {currentStep === 1 &&
-            !initialStation && (
-              <StationSelection
-                onSelectStation={
-                  handleStationSelect
-                }
+          {currentStep === 2 && selectedStation && (
+            <TimeSlotSelector
+              stationId={selectedStation.id}
+              onSelectSlot={handleTimeSlotSelect}
+              selectedSlotId={selectedTimeSlot?.id}
+            />
+          )}
+
+          {currentStep === 3 && selectedStation && (
+            <>
+              <FuelTypeSelector
+                stationId={selectedStation.id}
+                onSelectFuel={handleFuelSelect}
+                selectedFuelTypeId={fuelData?.fuelTypeId}
+                selectedQuantity={fuelData?.quantity}
+                preferredFuelTypeId={preferredFuelId}
               />
-            )}
-
-          {/* STEP 2 */}
-          {currentStep === 2 &&
-            selectedStation && (
-              <TimeSlotSelector
-                stationId={
-                  selectedStation?.id
-                }
-                onSelectSlot={
-                  handleTimeSlotSelect
-                }
-                selectedSlotId={
-                  selectedTimeSlot?.id
-                }
-              />
-            )}
-
-          {/* STEP 3 */}
-          {currentStep === 3 &&
-            selectedStation && (
-              <>
-                <FuelTypeSelector
-                  stationId={
-                    selectedStation?.id
-                  }
-                  onSelectFuel={
-                    handleFuelSelect
-                  }
-                  selectedFuelTypeId={
-                    fuelData?.fuelTypeId
-                  }
-                  selectedQuantity={
-                    fuelData?.quantity
-                  }
-                  preferredFuelTypeId={
-                    preferredFuelId
-                  }
-                />
-
-                <div className="mt-6">
-                  <Button
-                    onClick={
-                      handleProceedToPayment
-                    }
-                    disabled={
-                      !fuelData || creating
-                    }
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    size="lg"
-                  >
-                    {creating ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-
-                        Creating
-                        Reservation...
-                      </>
-                    ) : (
-                      'Proceed to Payment'
-                    )}
-                  </Button>
-                </div>
-              </>
-            )}
-
-          {/* STEP 4 */}
-          {currentStep === 4 &&
-            reservationId &&
-            fuelData && (
-              <PaymentProcessor
-                reservationId={
-                  reservationId
-                }
-                amount={
-                  fuelData.totalPrice
-                }
-                onPaymentSuccess={
-                  handlePaymentSuccess
-                }
-                onPaymentCancel={
-                  handleBack
-                }
-              />
-            )}
-
-          {/* STEP 5 */}
-          {currentStep === 5 && (
-  <>
-          {!reservationId ? (
-
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4" />
-
-                <p className="text-gray-600">
-                  Loading confirmation...
-                </p>
-
+              <div className="mt-6">
+                <Button
+                  onClick={handleProceedToPayment}
+                  disabled={!fuelData || creating}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  size="lg"
+                >
+                  {creating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                      Creating Reservation...
+                    </>
+                  ) : (
+                    'Proceed to Payment'
+                  )}
+                </Button>
               </div>
-            </div>
+            </>
+          )}
 
-          ) : (
+          {currentStep === 4 && reservationId && fuelData && (
+            <PaymentProcessor
+              reservationId={reservationId}
+              amount={fuelData.totalPrice}
+              onPaymentSuccess={handlePaymentSuccess}
+              onPaymentCancel={handleBack}
+            />
+          )}
 
+          {currentStep === 5 && (
             <ReservationConfirmation
               reservationId={reservationId}
               onViewReservations={() => {
-
-                if (onClose) {
-                  onClose();
-                }
-
+                if (onClose) onClose();
                 navigate('/driver/reservations');
               }}
               onStartOver={handleStartOver}
             />
-
           )}
-        </>
-      )}
         </div>
       </div>
     </div>
