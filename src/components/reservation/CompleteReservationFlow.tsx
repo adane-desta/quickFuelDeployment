@@ -353,6 +353,7 @@ export function CompleteReservationFlow({
 
           {currentStep === 5 && (
             <ReservationConfirmation
+              key={reservationId}
               reservationId={reservationId}
               onViewReservations={() => {
                 if (onClose) onClose();

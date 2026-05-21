@@ -1,5 +1,4 @@
-// src/components/reservation/ReservationConfirmation.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { CheckCircle, MapPin, Calendar, Fuel, CreditCard, Smartphone, Download, Share2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '../../lib/supabase/client';
@@ -26,15 +25,38 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reservation, setReservation] = useState<ReservationData | null>(null);
+  const isMounted = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Track mount state
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Fetch reservation when ID changes
   useEffect(() => {
     if (!reservationId) {
-      setError('No reservation ID provided');
-      setLoading(false);
+      if (isMounted.current) {
+        setError('No reservation ID provided');
+        setLoading(false);
+      }
       return;
     }
 
     const fetchReservation = async () => {
+      // Cancel previous fetch if any
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       try {
         const { data, error: fetchError } = await supabase
           .from('reservations')
@@ -51,21 +73,27 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
           .eq('id', reservationId)
           .single();
 
+        if (controller.signal.aborted) return;
         if (fetchError) throw fetchError;
         if (!data) throw new Error('Reservation not found');
 
-        setReservation(data as ReservationData);
+        if (isMounted.current) {
+          setReservation(data as ReservationData);
+          setLoading(false);
+        }
       } catch (err: any) {
+        if (controller.signal.aborted) return;
         console.error('Failed to load reservation:', err);
-        setError(err.message || 'Could not load reservation details');
-      } finally {
-        setLoading(false);
+        if (isMounted.current) {
+          setError(err.message || 'Could not load reservation details');
+          setLoading(false);
+        }
       }
     };
 
     fetchReservation();
 
-    // Optional: subscribe to realtime updates for status changes
+    // Realtime subscription
     const subscription = supabase
       .channel(`reservation-${reservationId}`)
       .on('postgres_changes', {
@@ -74,8 +102,8 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
         table: 'reservations',
         filter: `id=eq.${reservationId}`,
       }, (payload) => {
-        if (payload.new.status === 'completed') {
-          // Optionally show a toast or update UI
+        if (payload.new.status === 'completed' && isMounted.current) {
+          // Optionally update UI or show notification
         }
       })
       .subscribe();
@@ -85,6 +113,7 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
     };
   }, [reservationId]);
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -96,6 +125,7 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
     );
   }
 
+  // Error state
   if (error || !reservation) {
     return (
       <div className="text-center py-8">
@@ -106,6 +136,7 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
     );
   }
 
+  // Success render
   const pickupCode = reservation.pickup_code;
   const numericCode = pickupCode?.replace(/\D/g, '').slice(0, 6) || '000000';
   const pricePerLiter = reservation.fuel_type?.price_per_liter || 0;
@@ -122,7 +153,7 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-in zoom-in">
           <CheckCircle className="w-12 h-12 text-green-600" />
         </div>
-        <h3 className="text-gray-900 mb-2">Reservation Confirmed!</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-2">Reservation Confirmed!</h3>
         <p className="text-gray-600">Your fuel has been reserved successfully</p>
       </div>
 
@@ -139,9 +170,9 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
       </div>
 
       {/* Reservation Details */}
-      <div className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-          <h4 className="text-gray-900">Reservation Details</h4>
+          <h4 className="font-semibold text-gray-900">Reservation Details</h4>
         </div>
         <div className="p-4 space-y-3">
           <div className="flex items-start gap-3">
@@ -186,15 +217,15 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => {/* Implement download as PDF or image */}}
-          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          onClick={() => alert('Download feature coming soon')}
+          className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <Download className="w-4 h-4" />
           <span>Download</span>
         </button>
         <button
-          onClick={() => {/* Implement share via Web Share API */}}
-          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          onClick={() => alert('Share feature coming soon')}
+          className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <Share2 className="w-4 h-4" />
           <span>Share</span>
@@ -202,8 +233,8 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
       </div>
 
       {/* Important Notice */}
-      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
-        <p className="text-sm text-yellow-900 mb-2">Important Reminders:</p>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-sm text-yellow-900 mb-2 font-semibold">Important Reminders:</p>
         <ul className="text-xs text-yellow-800 space-y-1 list-disc list-inside">
           <li>Please arrive within your selected time slot</li>
           <li>Show your pickup code to the station attendant</li>
@@ -212,7 +243,7 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
         </ul>
       </div>
 
-      {/* Done Button */}
+      {/* Done Buttons */}
       <div className="flex gap-3">
         <Button onClick={onStartOver} variant="outline" className="flex-1">
           New Reservation
