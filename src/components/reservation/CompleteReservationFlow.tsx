@@ -123,7 +123,7 @@ export function CompleteReservationFlow({
         if (paymentStatus !== 'success') {
           return;
         }
-    
+
         console.log(
           'Starting reservation restore...'
         );
