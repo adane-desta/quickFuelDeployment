@@ -249,10 +249,7 @@ export function AddStationModal({ isOpen, onClose, onSuccess }: AddStationModalP
         success: true,
       });
 
-      toast.success('Station registered successfully!', {
-        description: `Owner email: ${formData.ownerEmail}\nTemporary password: ${tempPassword}`,
-        duration: 10000,
-      });
+      toast.success('Station registered successfully!');
 
       onSuccess();
       onClose();

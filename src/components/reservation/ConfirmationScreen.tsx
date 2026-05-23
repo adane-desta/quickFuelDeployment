@@ -245,11 +245,11 @@ export function ReservationConfirmation({ reservationId, onViewReservations, onS
 
       {/* Done Buttons */}
       <div className="flex gap-3">
-        <Button onClick={onStartOver} variant="outline" className="flex-1">
+        {/* <Button onClick={onStartOver} variant="outline" className="flex-1">
           New Reservation
-        </Button>
+        </Button> */}
         <Button onClick={onViewReservations} className="flex-1 bg-blue-600 hover:bg-blue-700">
-          View My Reservations
+          Done
         </Button>
       </div>
     </div>
