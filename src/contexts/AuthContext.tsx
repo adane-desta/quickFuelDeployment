@@ -68,8 +68,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user);
-          setUser(profile);
+          try {
+
+            const profile = await fetchUserProfile(
+              session.user
+            );
+          
+            setUser(profile);
+          
+          } catch (err) {
+          
+            console.error(err);
+          
+            setUser(null);
+          
+          }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -81,24 +94,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth();
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const profile = await fetchUserProfile(session.user);
-        setUser(profile);
-      } else if (event === 'SIGNED_OUT') {
+    const { data: { subscription } } =
+    supabase.auth.onAuthStateChange((event, session) => {
+  
+      console.log('Auth event:', event);
+  
+      if (event === 'SIGNED_OUT') {
         setUser(null);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        const profile = await fetchUserProfile(session.user);
-        setUser(profile);
-      } else if (event === 'USER_UPDATED' && session?.user) {
-        const profile = await fetchUserProfile(session.user);
-        setUser(profile);
+        return;
+      }
+  
+      if (
+        (event === 'SIGNED_IN' || event === 'USER_UPDATED')
+        && session?.user
+      ) {
+  
+        setTimeout(async () => {
+  
+          try {
+  
+            const profile = await fetchUserProfile(
+              session.user
+            );
+  
+            setUser(profile);
+  
+          } catch (err) {
+  
+            console.error(
+              'Profile fetch error:',
+              err
+            );
+  
+          }
+  
+        }, 0);
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
+    const handleVisibilityChange = async () => {
+
+      if (
+        document.visibilityState === 'visible'
+      ) {
+  
+        console.log('Tab active again');
+  
+        try {
+  
+          await supabase.auth.getSession();
+  
+        } catch (err) {
+  
+          console.error(
+            'Session recovery failed:',
+            err
+          );
+  
+        }
+      }
     };
+  
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+  
+    return () => {
+  
+      subscription.unsubscribe();
+  
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+    };
+  
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
