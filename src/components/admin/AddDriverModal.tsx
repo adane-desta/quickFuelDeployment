@@ -152,10 +152,7 @@ export function AddDriverModal({ isOpen, onClose, onSuccess }: AddDriverModalPro
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Registration failed');
 
-      toast.success('Driver registered successfully!', {
-        description: `Email: ${formData.email}\nTemporary Password: ${tempPassword}`,
-        duration: 10000,
-      });
+      toast.success('Driver registered successfully!');
       onSuccess();
       onClose();
       resetForm();
