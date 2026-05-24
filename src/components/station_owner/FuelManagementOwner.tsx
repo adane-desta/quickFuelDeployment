@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
 import { Skeleton } from '../ui/skeleton';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
-import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Info, X } from 'lucide-react';
+import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, Clock, DollarSign, Info, X } from 'lucide-react';
 
 export function FuelManagementOwner() {
   const { user } = useAuth();
