@@ -7,7 +7,7 @@ import { OperatorLayout } from './components/operator/OperatorLayout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { OwnerLayout } from './components/station_owner/OwnerLayout';
 import { ReservationReturnPage } from './components/reservation/ReservationReturnPage';
-
+import { AboutUs } from './components/AboutUs';
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -40,6 +40,10 @@ export const router = createBrowserRouter([
   {
     path: '/reservation',
     Component: ReservationReturnPage
+ },
+ {
+  path: '/about',
+  Component: AboutUs
  }
 
 ]);
