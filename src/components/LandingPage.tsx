@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import {
   Fuel, Zap, MapPin, Clock, Shield, TrendingUp, Menu, X, ChevronRight,
   CheckCircle, FileText, AlertCircle, Users, Building, CalendarCheck,
-  Timer, Smartphone, CreditCard, Target
+  Timer, Smartphone, CreditCard, Target, Info
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { supabase } from '../lib/supabase/client';
@@ -11,12 +11,11 @@ import { supabase } from '../lib/supabase/client';
 export function LandingPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [diagramsOpen, setDiagramsOpen] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 10,
     totalStations: 7,
-    totalReservations: 23,
-    avgTimeSaved: 56
+    totalReservations: 0,
+    avgTimeSaved: 45
   });
 
   useEffect(() => {
@@ -120,11 +119,11 @@ export function LandingPage() {
               <a href="#solution" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">Solution</a>
               <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">How It Works</a>
               <button
-                onClick={() => setDiagramsOpen(true)}
+                onClick={() => navigate('/about')}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors font-medium"
               >
-                <FileText className="w-4 h-4" />
-                Diagrams
+                <Info className="w-4 h-4" />
+                About Us
               </button>
               <Button onClick={() => navigate('/login')} variant="outline" className="border-blue-200 hover:border-blue-400">
                 Sign In
@@ -149,6 +148,16 @@ export function LandingPage() {
               <a href="#problem" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">Problem</a>
               <a href="#solution" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">Solution</a>
               <a href="#how-it-works" className="block text-gray-600 hover:text-blue-600 py-2 font-medium">How It Works</a>
+              <button
+                onClick={() => {
+                  navigate('/about');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 text-gray-600 hover:text-blue-600 py-2 font-medium w-full text-left"
+              >
+                <Info className="w-4 h-4" />
+                About Us
+              </button>
               <Button onClick={() => navigate('/login')} variant="outline" className="w-full">
                 Sign In
               </Button>
@@ -164,61 +173,80 @@ export function LandingPage() {
       <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-6">
-              <Zap className="w-4 h-4" />
-              The First Smart Fuel Reservation Platform in Jimma town
-            </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              End Fuel Queue
-              <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Frustration Forever
-              </span>
-            </h1>
-            <p className="text-xl text-gray-600 mb-10 leading-relaxed">
-              Reserve your fuel online, skip the hours-long queues, and fuel up in minutes.
-              <span className="block mt-2 font-semibold text-gray-800">QuickFuel brings order to Jimma's fuel distribution system.</span>
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button
-                onClick={() => navigate('/login')}
-                size="lg"
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-10 py-7 shadow-xl hover:shadow-2xl transition-all"
-              >
-                Reserve Fuel Now
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </Button>
-              <Button
-                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                size="lg"
-                variant="outline"
-                className="border-2 border-gray-300 hover:border-blue-400 text-lg px-10 py-7"
-              >
-                See How It Works
-              </Button>
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: Text Content */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-6">
+                <Zap className="w-4 h-4" />
+                Ethiopia's First Smart Fuel Reservation Platform
+              </div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                End Fuel Queue
+                <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Frustration Forever
+                </span>
+              </h1>
+              <p className="text-xl text-gray-600 mb-10 leading-relaxed">
+                Reserve your fuel online, skip the hours-long queues, and fuel up in minutes.
+                <span className="block mt-2 font-semibold text-gray-800">QuickFuel brings order to Ethiopia's fuel distribution system.</span>
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <Button
+                  onClick={() => navigate('/login')}
+                  size="lg"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-10 py-7 shadow-xl hover:shadow-2xl transition-all"
+                >
+                  Reserve Fuel Now
+                  <ChevronRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button
+                  onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                  size="lg"
+                  variant="outline"
+                  className="border-2 border-gray-300 hover:border-blue-400 text-lg px-10 py-7"
+                >
+                  See How It Works
+                </Button>
+              </div>
+
+              {/* Live Stats - Compact on Hero */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-blue-100">
+                  <p className="text-2xl font-bold text-blue-600">{stats.totalUsers.toLocaleString()}+</p>
+                  <p className="text-sm text-gray-600">Active Users</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-green-100">
+                  <p className="text-2xl font-bold text-green-600">{stats.avgTimeSaved} min</p>
+                  <p className="text-sm text-gray-600">Time Saved</p>
+                </div>
+              </div>
             </div>
 
-            {/* Live Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-blue-100">
-                <Users className="w-8 h-8 text-blue-600 mb-2 mx-auto" />
-                <p className="text-3xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}+</p>
-                <p className="text-sm text-gray-600 mt-1">Active Users</p>
+            {/* Right: Hero Image from Ethiopia */}
+            <div className="relative hidden lg:block">
+              <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+                <img
+                  src="https://images.unsplash.com/photo-1771495562804-373fb516114c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                  alt="Addis Ababa city traffic"
+                  className="w-full h-[500px] object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                <div className="absolute bottom-6 left-6 text-white">
+                  <p className="text-sm font-medium opacity-90">Busy streets of Addis Ababa</p>
+                  <p className="text-xs opacity-75">Photo by Bemnet Mesfin</p>
+                </div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-purple-100">
-                <Building className="w-8 h-8 text-purple-600 mb-2 mx-auto" />
-                <p className="text-3xl font-bold text-gray-900">{stats.totalStations}+</p>
-                <p className="text-sm text-gray-600 mt-1">Partner Stations</p>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
-                <CalendarCheck className="w-8 h-8 text-green-600 mb-2 mx-auto" />
-                <p className="text-3xl font-bold text-gray-900">{stats.totalReservations.toLocaleString()}+</p>
-                <p className="text-sm text-gray-600 mt-1">Reservations Made</p>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-orange-100">
-                <Timer className="w-8 h-8 text-orange-600 mb-2 mx-auto" />
-                <p className="text-3xl font-bold text-gray-900">{stats.avgTimeSaved} min</p>
-                <p className="text-sm text-gray-600 mt-1">Avg Time Saved</p>
+              {/* Floating Stats Card */}
+              <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl p-6 shadow-2xl border-2 border-blue-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <Building className="w-7 h-7 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-gray-900">{stats.totalStations}+</p>
+                    <p className="text-sm text-gray-600">Partner Stations</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -233,11 +261,39 @@ export function LandingPage() {
               <AlertCircle className="w-4 h-4" />
               The Problem We're Solving
             </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Jimma's Fuel Queue Crisis</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Ethiopia's Fuel Queue Crisis</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Every day, millions of Ethiopians waste precious hours waiting in fuel queues.
               <span className="block mt-2 font-semibold text-red-600">This has to stop.</span>
             </p>
+          </div>
+
+          {/* Real Images from Ethiopia */}
+          <div className="grid md:grid-cols-2 gap-8 mb-16">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl group">
+              <img
+                src="https://images.unsplash.com/photo-1658750761951-ca89765281bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                alt="Traffic and transportation in Addis Ababa"
+                className="w-full h-[400px] object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-6 left-6 right-6 text-white">
+                <h3 className="text-2xl font-bold mb-2">Hours Wasted Daily</h3>
+                <p className="text-sm opacity-90">Drivers spend 2-4 hours in queues, not knowing if fuel will be available</p>
+              </div>
+            </div>
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl group">
+              <img
+                src="https://images.unsplash.com/photo-1752269110578-3b9c2fe38b8a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                alt="Busy streets of Ethiopia with vehicles"
+                className="w-full h-[400px] object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-6 left-6 right-6 text-white">
+                <h3 className="text-2xl font-bold mb-2">Economic Impact</h3>
+                <p className="text-sm opacity-90">Lost productivity affects families, businesses, and the entire economy</p>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
@@ -283,7 +339,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
             {solutions.map((solution, index) => (
               <div key={index} className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-100 hover:border-blue-300">
                 <div className={`w-14 h-14 ${solution.color} rounded-xl flex items-center justify-center mb-6 shadow-md`}>
@@ -293,6 +349,107 @@ export function LandingPage() {
                 <p className="text-gray-600 leading-relaxed">{solution.description}</p>
               </div>
             ))}
+          </div>
+
+          {/* Technology in Action - Images from Africa */}
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="relative rounded-2xl overflow-hidden shadow-xl group">
+              <img
+                src="https://images.unsplash.com/photo-1677058698151-1ba91e4c2a39?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                alt="Mobile payment technology in Africa"
+                className="w-full h-[300px] object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-blue-900/80 to-transparent"></div>
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <h4 className="font-bold text-lg mb-1">Mobile-First Design</h4>
+                <p className="text-sm opacity-90">Book fuel from anywhere, anytime</p>
+              </div>
+            </div>
+            <div className="relative rounded-2xl overflow-hidden shadow-xl group">
+              <img
+                src="https://images.unsplash.com/photo-1677058559072-93f06cf25b00?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                alt="Digital payments in Ethiopia"
+                className="w-full h-[300px] object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-purple-900/80 to-transparent"></div>
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <h4 className="font-bold text-lg mb-1">Secure Payments</h4>
+                <p className="text-sm opacity-90">Pay online with confidence</p>
+              </div>
+            </div>
+            <div className="relative rounded-2xl overflow-hidden shadow-xl group">
+              <img
+                src="https://images.unsplash.com/photo-1640117792694-97b464c05f66?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                alt="Happy Ethiopian users"
+                className="w-full h-[300px] object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-green-900/80 to-transparent"></div>
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <h4 className="font-bold text-lg mb-1">Community Success</h4>
+                <p className="text-sm opacity-90">Thousands already benefiting</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Before vs After Comparison */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">The QuickFuel Difference</h2>
+            <p className="text-xl text-gray-600">See how we transform the fuel buying experience</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Before - Old Way */}
+            <div className="bg-white rounded-2xl p-8 border-2 border-red-200 shadow-lg">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <X className="w-7 h-7 text-red-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900">Before QuickFuel</h3>
+              </div>
+              <ul className="space-y-4">
+                {[
+                  'Wake up early to beat the queue',
+                  'Drive station to station looking for fuel',
+                  'Wait 2-4 hours in long queues',
+                  'Risk running out before your turn',
+                  'Waste fuel idling in traffic',
+                  'Miss work and family time'
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3 text-gray-700">
+                    <X className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* After - QuickFuel Way */}
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-8 border-2 border-blue-200 shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900">With QuickFuel</h3>
+              </div>
+              <ul className="space-y-4">
+                {[
+                  'Check availability from your phone',
+                  'Reserve fuel in 2 minutes',
+                  'Pay securely online',
+                  'Arrive at your scheduled time',
+                  'Show QR code and fuel in 5 minutes',
+                  'Get back to what matters'
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3 text-gray-700">
+                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span className="font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -399,8 +556,8 @@ export function LandingPage() {
             <div>
               <h3 className="font-bold mb-4 text-lg">Company</h3>
               <ul className="space-y-3 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+                <li><button onClick={() => navigate('/about')} className="hover:text-white transition-colors">About Us</button></li>
+                <li><a href="mailto:support@quickfuel.app" className="hover:text-white transition-colors">Contact</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
               </ul>
             </div>
