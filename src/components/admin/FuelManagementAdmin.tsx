@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { inventoryService } from '../../lib/supabase/database';
 import { notifyError } from '../../lib/utils/notifications';
@@ -10,7 +10,7 @@ import { Progress } from '../ui/progress';
 import { Skeleton } from '../ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
-import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Info, X, MapPin, Clock } from 'lucide-react';
+import { Fuel, Droplet, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Info, X, MapPin, Clock, BarChart3 } from 'lucide-react';
 
 export function FuelManagementAdmin() {
   const [stations, setStations] = useState<Station[]>([]);
@@ -59,8 +59,6 @@ export function FuelManagementAdmin() {
   };
 
   const loadAllInventory = async () => {
-    // For 'All stations', we need to fetch inventory for all stations and combine.
-    // Since the inventoryService only gets one station at a time, we fetch all stations' inventory.
     try {
       const allInventory: StationFuelInventory[] = [];
       for (const station of stations) {
@@ -75,11 +73,27 @@ export function FuelManagementAdmin() {
     }
   };
 
-  // Real‑time updates for inventory of the selected station (or all stations – complex, we skip for simplicity)
+  // Real‑time updates
   useRealtimeSubscription('station_fuel_inventory', selectedStationId !== 'all' ? { column: 'station_id', value: selectedStationId } : null, () => {
     if (selectedStationId === 'all') loadAllInventory();
     else loadInventory(selectedStationId);
   }, [selectedStationId]);
+
+  // Compute fuel type totals when 'all' is selected
+  const fuelTypeTotals = useMemo(() => {
+    if (selectedStationId !== 'all') return null;
+    const totalsMap = new Map<string, { fuelTypeName: string; totalStock: number; count: number }>();
+    for (const item of inventory) {
+      const name = item.fuel_type_name;
+      if (!totalsMap.has(name)) {
+        totalsMap.set(name, { fuelTypeName: name, totalStock: 0, count: 0 });
+      }
+      const entry = totalsMap.get(name)!;
+      entry.totalStock += item.current_stock;
+      entry.count += 1;
+    }
+    return Array.from(totalsMap.values()).sort((a, b) => a.fuelTypeName.localeCompare(b.fuelTypeName));
+  }, [inventory, selectedStationId]);
 
   const getStockLevel = (stock: number, min: number, max: number) => {
     const percentage = (stock / max) * 100;
@@ -125,6 +139,34 @@ export function FuelManagementAdmin() {
         </div>
         {selectedStationId !== 'all' && <p className="text-sm text-gray-500">Showing inventory for: {selectedStationName}</p>}
       </div>
+
+      {/* 🆕 SUMMARY CARD FOR ALL STATIONS – Total fuel by type */}
+      {selectedStationId === 'all' && fuelTypeTotals && fuelTypeTotals.length > 0 && (
+        <Card className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="size-5 text-blue-700" />
+            <h2 className="text-lg font-semibold text-blue-900">Total Fuel Stock Across All Stations</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {fuelTypeTotals.map(total => (
+              <div key={total.fuelTypeName} className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Fuel className="size-5 text-blue-600" />
+                    <span className="font-semibold text-gray-800">{total.fuelTypeName}</span>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                    {total.count} station{total.count !== 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                <p className="text-2xl font-bold mt-2 text-blue-800">{total.totalStock.toLocaleString()} L</p>
+                <p className="text-xs text-gray-500 mt-1">Combined inventory</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-3">* Totals are calculated from current stock across all stations. Individual station details are listed below.</p>
+        </Card>
+      )}
 
       {inventory.length === 0 ? (
         <Card className="p-12 text-center">
@@ -213,7 +255,7 @@ export function FuelManagementAdmin() {
         <p className="text-xs text-gray-500 mt-3">Prices are set by the system administrator.</p>
       </Card>
 
-      {/* Detail Modal (same as owner) */}
+      {/* Detail Modal (unchanged) */}
       {showModal && selectedFuel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -255,7 +297,6 @@ export function FuelManagementAdmin() {
                 <h4 className="font-semibold mb-2 flex items-center gap-2"><DollarSign className="size-4 text-green-600" /> Pricing</h4>
                 <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
                   <div className="flex justify-between"><span className="text-gray-600">Price per Liter</span><span className="font-bold text-green-700">ETB {selectedFuel.effective_price?.toFixed(2)}</span></div>
-                  {/* <div className="flex justify-between"><span className="text-gray-600">Custom Price</span><span>{selectedFuel.custom_price_per_liter ? `ETB ${selectedFuel.custom_price_per_liter.toFixed(2)}` : 'Not set'}</span></div> */}
                   <div className="flex justify-between"><span className="text-gray-600">Base Price</span><span>ETB {selectedFuel.fuel_type?.base_price_per_liter?.toFixed(2) || '—'}</span></div>
                 </div>
               </div>
