@@ -272,7 +272,7 @@ export function LandingPage() {
           <div className="grid md:grid-cols-2 gap-8 mb-16">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl group">
               <img
-                src="https://images.unsplash.com/photo-1658750761951-ca89765281bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                src="/Screenshot 2026-05-24 112112.png"
                 alt="Traffic and transportation in Addis Ababa"
                 className="w-full h-[400px] object-cover group-hover:scale-105 transition-transform duration-500"
               />
