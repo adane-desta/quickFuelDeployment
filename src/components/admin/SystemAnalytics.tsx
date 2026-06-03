@@ -29,7 +29,7 @@ interface InventoryItem {
   fuelTypeId: string;
   fuelTypeName: string;
   currentStock: number;
-  lastUpdated: string;
+  updatedAt: string;
 }
 
 interface DispensingRecord {
@@ -61,7 +61,9 @@ export function SystemAnalytics() {
         return { start: todayStart, end: now };
       case 'week': {
         const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        weekStart.setDate(diff);
         weekStart.setHours(0,0,0,0);
         return { start: weekStart, end: now };
       }
@@ -94,12 +96,13 @@ export function SystemAnalytics() {
       if (fuelError) throw fuelError;
       setFuelTypes(fuelTypesData || []);
 
-      // 3. Fetch current inventory (available stock) from station_fuel_inventory
+      // 3. Fetch current inventory from station_fuel_inventory with proper joins
+      //    Use correct column names: updated_at (not last_updated)
       const { data: inventoryRaw, error: invError } = await supabase
         .from('station_fuel_inventory')
         .select(`
           current_stock,
-          last_updated,
+          updated_at,
           station_id,
           fuel_type_id,
           station:stations(name),
@@ -117,11 +120,11 @@ export function SystemAnalytics() {
           fuelTypeId: item.fuel_type_id,
           fuelTypeName: item.fuel_type?.name || 'Unknown',
           currentStock: item.current_stock || 0,
-          lastUpdated: item.last_updated || new Date().toISOString(),
+          updatedAt: item.updated_at || new Date().toISOString(),
         });
       });
 
-      // Create complete matrix (every station × every fuel type) with inventory values
+      // Create complete matrix (every station × every fuel type)
       const completeInventory: InventoryItem[] = [];
       for (const station of (stationsData || [])) {
         for (const fuel of (fuelTypesData || [])) {
@@ -136,7 +139,7 @@ export function SystemAnalytics() {
               fuelTypeId: fuel.id,
               fuelTypeName: fuel.name,
               currentStock: 0,
-              lastUpdated: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             });
           }
         }
@@ -148,14 +151,12 @@ export function SystemAnalytics() {
       const { data: dispensedRaw, error: dispError } = await supabase
         .from('fuel_dispensing_logs')
         .select(`
-          dispensed_quantity,
+          quantity_dispensed,
           dispensed_at,
-          reservation:reservations(
-            station_id,
-            fuel_type_id,
-            station:stations(name),
-            fuel_type:fuel_types(name)
-          )
+          station_id,
+          fuel_type_id,
+          station:stations(name),
+          fuel_type:fuel_types(name)
         `)
         .gte('dispensed_at', start.toISOString())
         .lte('dispensed_at', end.toISOString());
@@ -165,16 +166,12 @@ export function SystemAnalytics() {
       // Aggregate dispensed liters by station + fuel type
       const dispensedMap = new Map<string, number>();
       (dispensedRaw || []).forEach((log: any) => {
-        const reservation = log.reservation;
-        if (!reservation) return;
-        const stationId = reservation.station_id;
-        const fuelTypeId = reservation.fuel_type_id;
-        const key = `${stationId}|${fuelTypeId}`;
-        const qty = log.dispensed_quantity || 0;
+        const key = `${log.station_id}|${log.fuel_type_id}`;
+        const qty = log.quantity_dispensed || 0;
         dispensedMap.set(key, (dispensedMap.get(key) || 0) + qty);
       });
 
-      // Build dispensed records from the complete matrix (to have zero entries)
+      // Build dispensed records from the complete matrix
       const completeDispensed: DispensingRecord[] = [];
       for (const station of (stationsData || [])) {
         for (const fuel of (fuelTypesData || [])) {
@@ -200,7 +197,7 @@ export function SystemAnalytics() {
 
   useEffect(() => {
     loadData();
-  }, [dateRange]); // Reload when date range changes
+  }, [dateRange]);
 
   // Filtering for display
   const filteredInventory = inventoryData.filter(item => {
@@ -215,10 +212,10 @@ export function SystemAnalytics() {
     return fuelMatch && stationMatch;
   });
 
-  // Totals for key metrics (using all data, not filtered)
+  // Totals for key metrics (using all data)
   const totalAvailable = inventoryData.reduce((sum, item) => sum + item.currentStock, 0);
   const totalDispensed = dispensedData.reduce((sum, item) => sum + item.dispensedLiters, 0);
-  const totalDigitalDispensed = totalDispensed; // all dispensed logs are digital reservations
+  const totalDigitalDispensed = totalDispensed;
 
   // Totals by fuel type for charts
   const totalsByFuelType = useMemo(() => {
@@ -272,7 +269,6 @@ export function SystemAnalytics() {
     return Array.from(stationMap.values());
   }, [filteredInventory, filteredDispensed, selectedFuelType]);
 
-  // Revenue calculation
   const getFuelPrice = (fuelName: string): number => {
     const ft = fuelTypes.find(f => f.name === fuelName);
     return ft?.base_price_per_liter || 0;
@@ -290,7 +286,7 @@ export function SystemAnalytics() {
         item.fuelTypeName,
         item.currentStock,
         filteredDispensed.find(d => d.stationId === item.stationId && d.fuelTypeName === item.fuelTypeName)?.dispensedLiters || 0,
-        new Date(item.lastUpdated).toLocaleString(),
+        new Date(item.updatedAt).toLocaleString(),
       ]),
     ];
     const csv = csvRows.map(row => row.join(',')).join('\n');
@@ -330,7 +326,7 @@ export function SystemAnalytics() {
         </Button>
       </div>
 
-      {/* Filters: Fuel Type, Station, Date Range */}
+      {/* Filters */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -375,7 +371,7 @@ export function SystemAnalytics() {
         </div>
       </div>
 
-      {/* Key Metrics Cards */}
+      {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-3 mb-2">
@@ -422,7 +418,7 @@ export function SystemAnalytics() {
         </Card>
       </div>
 
-      {/* Charts Row */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
@@ -512,7 +508,7 @@ export function SystemAnalytics() {
         </div>
       </Card>
 
-      {/* Station-wise Breakdown (when a specific fuel type is selected) */}
+      {/* Station-wise Breakdown */}
       {selectedFuelType !== 'All' && stationWiseData.length > 0 && (
         <Card className="p-6 mb-6">
           <div className="mb-4">
@@ -568,7 +564,7 @@ export function SystemAnalytics() {
                     </td>
                     <td className="py-3 px-4 text-sm text-right text-gray-900">{item.currentStock.toLocaleString()}</td>
                     <td className="py-3 px-4 text-sm text-right text-blue-600">{dispensed.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-sm text-gray-500">{new Date(item.lastUpdated).toLocaleString()}</td>
+                    <td className="py-3 px-4 text-sm text-gray-500">{new Date(item.updatedAt).toLocaleString()}</td>
                   </tr>
                 );
               })}
