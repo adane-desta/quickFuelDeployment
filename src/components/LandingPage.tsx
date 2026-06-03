@@ -226,7 +226,7 @@ export function LandingPage() {
             <div className="relative hidden lg:block">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
                 <img
-                  src='public/fuel-station-addis-abeba-ethiopia-AYY94M.jpg'
+                  src='/fuel-station-addis-abeba-ethiopia-AYY94M.jpg'
                   alt="total fuel station"
                   className="w-full h-[500px] object-cover"
                 />
