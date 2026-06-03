@@ -226,7 +226,7 @@ export function LandingPage() {
             <div className="relative hidden lg:block">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
                 <img
-                  src="https://images.unsplash.com/photo-1771495562804-373fb516114c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                  src='public\fuel-station-addis-abeba-ethiopia-AYY94M.jpg'
                   alt="Addis Ababa city traffic"
                   className="w-full h-[500px] object-cover"
                 />
