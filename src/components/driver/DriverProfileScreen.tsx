@@ -2,18 +2,19 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  User, Mail, Phone, MapPin, Car, Fuel, CreditCard, Lock, Shield, Bell, Globe,
-  LogOut, Trash2, Download, Edit2, Check, X, CheckCircle, Calendar, TrendingUp,
-  Heart, ChevronRight, Save, Gauge, AlertCircle
+  User, Mail, Phone, MapPin, Car, Fuel, CreditCard, Lock, Shield, Bell,
+  LogOut, Trash2, Download, Edit2, X, CheckCircle, Calendar,
+  Heart, ChevronRight, Save, Gauge, RefreshCw
 } from 'lucide-react';
 
 interface DriverProfileScreenProps {
   onLogout: () => void;
 }
 
-interface ReservationCount {
+interface ReservationStats {
   total: number;
   completed: number;
+  weeklyUsed: number;   // sum of quantities from completed reservations in last 7 days
 }
 
 interface CarClassInfo {
@@ -25,14 +26,10 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
   const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [reservationStats, setReservationStats] = useState<ReservationCount>({ total: 0, completed: 0 });
+  const [reservationStats, setReservationStats] = useState<ReservationStats>({ total: 0, completed: 0, weeklyUsed: 0 });
   const [carClass, setCarClass] = useState<CarClassInfo | null>(null);
-  const [weeklyUsed, setWeeklyUsed] = useState<number>(0);
-  const [weeklyRemaining, setWeeklyRemaining] = useState<number>(0);
   const [weeklyResetDate, setWeeklyResetDate] = useState<string>('');
   const [loadingStats, setLoadingStats] = useState(true);
-  const [favoriteStations, setFavoriteStations] = useState<{ name: string; distance: string }[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<{ type: string; number: string; default: boolean }[]>([]);
 
   const [editData, setEditData] = useState({
     full_name: user?.full_name || '',
@@ -55,112 +52,133 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
     smsNotifications: true,
     pushNotifications: true,
     emailNotifications: false,
-    language: 'English',
   });
 
-  // Fetch driver stats from Supabase
-  useEffect(() => {
+  // Mock data for UI – replace with real data from DB if you have tables
+  const favoriteStations = [
+    { name: 'Shell Station Downtown', distance: '0.5 km' },
+    { name: 'Total Energy', distance: '2.3 km' },
+    { name: 'BP Express', distance: '1.2 km' },
+  ];
+
+  const paymentMethods = [
+    { type: 'Telebirr', number: '**** **** 5678', default: true },
+    { type: 'Chapa', number: '**** **** 1234', default: false },
+  ];
+
+  // Fetch driver stats directly from Supabase – recalculates weekly quota from COMPLETED reservations only
+  const fetchDriverData = async () => {
     if (!user?.id) return;
-
-    const fetchDriverData = async () => {
-      setLoadingStats(true);
-      try {
-        // 1. Get reservation counts
-        const { data: reservations, error: resError } = await supabase
-          .from('reservations')
-          .select('status')
-          .eq('driver_id', user.id);
-        if (!resError && reservations) {
-          const total = reservations.length;
-          const completed = reservations.filter(r => r.status === 'completed').length;
-          setReservationStats({ total, completed });
-        }
-
-        // 2. Get car class info and weekly quota
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('car_class_id, weekly_reserved_liters, weekly_reset_date')
-          .eq('id', user.id)
-          .single();
-        if (!userError && userData) {
-          setWeeklyUsed(userData.weekly_reserved_liters || 0);
-          setWeeklyResetDate(userData.weekly_reset_date || new Date().toISOString().split('T')[0]);
-
-          if (userData.car_class_id) {
-            const { data: classData, error: classError } = await supabase
-              .from('car_classes')
-              .select('name, weekly_fuel_limit')
-              .eq('id', userData.car_class_id)
-              .single();
-            if (!classError && classData) {
-              setCarClass(classData);
-              const limit = classData.weekly_fuel_limit;
-              const used = userData.weekly_reserved_liters || 0;
-              setWeeklyRemaining(Math.max(0, limit - used));
-            }
-          }
-        }
-
-        // 3. Favorite stations (mock for now – you can replace with real data from a favorites table)
-        setFavoriteStations([
-          { name: 'Shell Station Downtown', distance: '0.5 km' },
-          { name: 'Total Energy', distance: '2.3 km' },
-          { name: 'BP Express', distance: '1.2 km' },
-        ]);
-
-        // 4. Payment methods (mock)
-        setPaymentMethods([
-          { type: 'Telebirr', number: '**** **** 5678', default: true },
-          { type: 'Chapa', number: '**** **** 1234', default: false },
-        ]);
-      } catch (err) {
-        console.error('Error fetching driver data:', err);
-      } finally {
-        setLoadingStats(false);
+    setLoadingStats(true);
+    try {
+      // 1. Get all reservations for this driver
+      const { data: reservations, error: resError } = await supabase
+        .from('reservations')
+        .select('status, quantity, created_at')
+        .eq('driver_id', user.id);
+      if (!resError && reservations) {
+        const total = reservations.length;
+        const completed = reservations.filter(r => r.status === 'completed').length;
+        
+        // 2. Calculate weekly used: sum of quantity for COMPLETED reservations in last 7 days
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const weeklyUsed = reservations
+          .filter(r => r.status === 'completed' && new Date(r.created_at) >= oneWeekAgo)
+          .reduce((sum, r) => sum + (r.quantity || 0), 0);
+        
+        setReservationStats({ total, completed, weeklyUsed });
       }
-    };
 
+      // 3. Get car class and weekly reset date from users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('car_class_id, weekly_reset_date')
+        .eq('id', user.id)
+        .single();
+      if (!userError && userData) {
+        setWeeklyResetDate(userData.weekly_reset_date || new Date().toISOString().split('T')[0]);
+        
+        if (userData.car_class_id) {
+          const { data: classData, error: classError } = await supabase
+            .from('car_classes')
+            .select('name, weekly_fuel_limit')
+            .eq('id', userData.car_class_id)
+            .single();
+          if (!classError && classData) {
+            setCarClass(classData);
+          } else {
+            console.warn('Car class not found:', classError);
+          }
+        } else {
+          console.log('User has no car_class_id assigned – quota will not be enforced');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching driver data:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDriverData();
   }, [user?.id]);
 
   const handleSaveProfile = () => {
     updateUser(editData);
     setIsEditing(false);
+    // Refresh data after profile update
+    setTimeout(fetchDriverData, 500);
   };
 
   const handleChangePassword = () => {
     if (passwordData.new.length < 6) return;
     if (passwordData.new !== passwordData.confirm) return;
-    // Implement actual password change via Supabase
+    // Implement actual password change via Supabase (e.g., supabase.auth.updateUser)
     setShowChangePassword(false);
     setPasswordData({ current: '', new: '', confirm: '' });
   };
 
   const formatDate = (dateString: string) => {
     try {
-      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
       return 'Not set';
     }
   };
 
+  const weeklyLimit = carClass?.weekly_fuel_limit || 0;
+  const weeklyUsed = reservationStats.weeklyUsed;
+  const weeklyRemaining = Math.max(0, weeklyLimit - weeklyUsed);
+  const quotaPercentage = weeklyLimit > 0 ? Math.min((weeklyUsed / weeklyLimit) * 100, 100) : 0;
+
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 lg:px-6 pt-6 pb-20 shadow-md">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 lg:px-6 pt-6 pb-20 shadow-md flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Profile</h1>
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="p-2 hover:bg-blue-500 rounded-full transition-colors"
-          >
-            {isEditing ? <X className="w-5 h-5" /> : <Edit2 className="w-5 h-5" />}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchDriverData}
+              className="p-2 hover:bg-blue-500 rounded-full transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="p-2 hover:bg-blue-500 rounded-full transition-colors"
+            >
+              {isEditing ? <X className="w-5 h-5" /> : <Edit2 className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Profile Card */}
-      <div className="px-4 lg:px-6 -mt-16 pb-4">
+      <div className="px-4 lg:px-6 -mt-16 pb-4 flex-shrink-0">
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex flex-col items-center text-center mb-4">
             <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-3">
@@ -194,21 +212,23 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
         </div>
       </div>
 
-      {/* Scrollable Content - increased max height and proper margins */}
-      <div className="flex-1 overflow-y-auto px-4 lg:px-6 space-y-4 pb-6">
+      {/* Scrollable Content – increased height */}
+      <div className="flex-1 overflow-y-auto px-4 lg:px-6 pb-6 min-h-0">
         <div className="max-w-2xl mx-auto space-y-4">
-          {/* Fuel Quota Card - NEW */}
+          {/* Weekly Fuel Quota Card */}
           {!loadingStats && carClass && (
             <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-sm p-5 border border-amber-200">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-gray-900 flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                   <Gauge className="w-5 h-5 text-amber-600" /> Weekly Fuel Quota
                 </h3>
-                <span className="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded-full">{carClass.name}</span>
+                <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                  {carClass.name}
+                </span>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Used this week</span>
+                  <span className="text-gray-600">Used this week (completed)</span>
                   <span className="font-semibold text-gray-900">{weeklyUsed.toLocaleString()} L</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -217,15 +237,20 @@ export function DriverProfileScreen({ onLogout }: DriverProfileScreenProps) {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Weekly Limit</span>
-                  <span className="font-semibold text-gray-900">{carClass.weekly_fuel_limit.toLocaleString()} L</span>
+                  <span className="font-semibold text-gray-900">{weeklyLimit.toLocaleString()} L</span>
                 </div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-amber-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min((weeklyUsed / carClass.weekly_fuel_limit) * 100, 100)}%` }}
-                  />
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-amber-500 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${quotaPercentage}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    {quotaPercentage.toFixed(0)}% used
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500">
                   Resets on {weeklyResetDate ? formatDate(weeklyResetDate) : 'Monday'}
                 </p>
               </div>
