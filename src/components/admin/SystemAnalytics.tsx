@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase/client';
-import { Station } from '../../types';
+import type { Station } from '../../types';
 import {
   BarChart3, TrendingUp, Fuel, Zap, Filter, Download,
   Droplet, Activity, MapPin, Calendar, Loader2
@@ -23,28 +23,56 @@ interface FuelType {
   base_price_per_liter: number;
 }
 
-interface AnalyticsRecord {
+interface InventoryItem {
   stationId: string;
   stationName: string;
   fuelTypeId: string;
   fuelTypeName: string;
-  totalAvailable: number;
-  totalDispensed: number;
-  digitalDispensed: number;
+  currentStock: number;
   lastUpdated: string;
 }
+
+interface DispensingRecord {
+  stationId: string;
+  stationName: string;
+  fuelTypeId: string;
+  fuelTypeName: string;
+  dispensedLiters: number;
+}
+
+type DateRange = 'today' | 'week' | 'month';
 
 export function SystemAnalytics() {
   const [selectedFuelType, setSelectedFuelType] = useState<string>('All');
   const [selectedStation, setSelectedStation] = useState<string>('All');
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsRecord[]>([]);
+  const [dateRange, setDateRange] = useState<DateRange>('today');
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
+  const [dispensedData, setDispensedData] = useState<DispensingRecord[]>([]);
   const [fuelTypes, setFuelTypes] = useState<FuelType[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Helper to get date filters based on selected range
+  const getDateFilter = () => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    switch (dateRange) {
+      case 'today':
+        return { start: todayStart, end: now };
+      case 'week': {
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+        weekStart.setHours(0,0,0,0);
+        return { start: weekStart, end: now };
+      }
+      case 'month': {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        return { start: monthStart, end: now };
+      }
+      default:
+        return { start: todayStart, end: now };
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -66,141 +94,202 @@ export function SystemAnalytics() {
       if (fuelError) throw fuelError;
       setFuelTypes(fuelTypesData || []);
 
-      // 3. Fetch fuel analytics (with station & fuel type names via join)
-      //    Using the correct Supabase join syntax: foreign key columns are automatically recognised
-      const { data: analyticsRaw, error: analyticsError } = await supabase
-        .from('fuel_analytics')
+      // 3. Fetch current inventory (available stock) from station_fuel_inventory
+      const { data: inventoryRaw, error: invError } = await supabase
+        .from('station_fuel_inventory')
         .select(`
-          id,
+          current_stock,
+          last_updated,
           station_id,
           fuel_type_id,
-          total_available,
-          total_dispensed,
-          digital_dispensed,
-          last_updated,
           station:stations(name),
-          fuel_type:fuel_types(name, base_price_per_liter)
+          fuel_type:fuel_types(name)
         `);
+      if (invError) throw invError;
 
-      if (analyticsError) throw analyticsError;
-
-      // 4. Build a map of existing analytics for quick lookup
-      const analyticsMap = new Map<string, AnalyticsRecord>();
-      (analyticsRaw || []).forEach((item: any) => {
+      // Build inventory map (station + fuel type)
+      const invMap = new Map<string, InventoryItem>();
+      (inventoryRaw || []).forEach((item: any) => {
         const key = `${item.station_id}|${item.fuel_type_id}`;
-        analyticsMap.set(key, {
+        invMap.set(key, {
           stationId: item.station_id,
           stationName: item.station?.name || 'Unknown',
           fuelTypeId: item.fuel_type_id,
           fuelTypeName: item.fuel_type?.name || 'Unknown',
-          totalAvailable: item.total_available || 0,
-          totalDispensed: item.total_dispensed || 0,
-          digitalDispensed: item.digital_dispensed || 0,
+          currentStock: item.current_stock || 0,
           lastUpdated: item.last_updated || new Date().toISOString(),
         });
       });
 
-      // 5. Create a complete matrix: every station × every fuel type
-      const completeData: AnalyticsRecord[] = [];
+      // Create complete matrix (every station × every fuel type) with inventory values
+      const completeInventory: InventoryItem[] = [];
       for (const station of (stationsData || [])) {
         for (const fuel of (fuelTypesData || [])) {
           const key = `${station.id}|${fuel.id}`;
-          const existing = analyticsMap.get(key);
+          const existing = invMap.get(key);
           if (existing) {
-            completeData.push(existing);
+            completeInventory.push(existing);
           } else {
-            // Missing entry – create with zero values and current timestamp
-            completeData.push({
+            completeInventory.push({
               stationId: station.id,
-              stationName: station?.name,
+              stationName: station.name,
               fuelTypeId: fuel.id,
-              fuelTypeName: fuel?.name,
-              totalAvailable: 0,
-              totalDispensed: 0,
-              digitalDispensed: 0,
+              fuelTypeName: fuel.name,
+              currentStock: 0,
               lastUpdated: new Date().toISOString(),
             });
           }
         }
       }
+      setInventoryData(completeInventory);
 
-      setAnalyticsData(completeData);
+      // 4. Fetch dispensed data from fuel_dispensing_logs with date filter
+      const { start, end } = getDateFilter();
+      const { data: dispensedRaw, error: dispError } = await supabase
+        .from('fuel_dispensing_logs')
+        .select(`
+          dispensed_quantity,
+          dispensed_at,
+          reservation:reservations(
+            station_id,
+            fuel_type_id,
+            station:stations(name),
+            fuel_type:fuel_types(name)
+          )
+        `)
+        .gte('dispensed_at', start.toISOString())
+        .lte('dispensed_at', end.toISOString());
+
+      if (dispError) throw dispError;
+
+      // Aggregate dispensed liters by station + fuel type
+      const dispensedMap = new Map<string, number>();
+      (dispensedRaw || []).forEach((log: any) => {
+        const reservation = log.reservation;
+        if (!reservation) return;
+        const stationId = reservation.station_id;
+        const fuelTypeId = reservation.fuel_type_id;
+        const key = `${stationId}|${fuelTypeId}`;
+        const qty = log.dispensed_quantity || 0;
+        dispensedMap.set(key, (dispensedMap.get(key) || 0) + qty);
+      });
+
+      // Build dispensed records from the complete matrix (to have zero entries)
+      const completeDispensed: DispensingRecord[] = [];
+      for (const station of (stationsData || [])) {
+        for (const fuel of (fuelTypesData || [])) {
+          const key = `${station.id}|${fuel.id}`;
+          const dispensed = dispensedMap.get(key) || 0;
+          completeDispensed.push({
+            stationId: station.id,
+            stationName: station.name,
+            fuelTypeId: fuel.id,
+            fuelTypeName: fuel.name,
+            dispensedLiters: dispensed,
+          });
+        }
+      }
+      setDispensedData(completeDispensed);
     } catch (error: any) {
-      console.error('Error loading analytics data:', error);
+      console.error('Error loading analytics:', error);
       toast.error(`Failed to load analytics: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter based on selections
-  const filteredAnalytics = analyticsData.filter(item => {
+  useEffect(() => {
+    loadData();
+  }, [dateRange]); // Reload when date range changes
+
+  // Filtering for display
+  const filteredInventory = inventoryData.filter(item => {
     const fuelMatch = selectedFuelType === 'All' || item.fuelTypeName === selectedFuelType;
     const stationMatch = selectedStation === 'All' || item.stationId === selectedStation;
     return fuelMatch && stationMatch;
   });
 
-  // Aggregate totals by fuel type (using all data, not filtered, for global metrics)
-  const totalsByFuelType = analyticsData.reduce((acc, item) => {
-    const fuel = item.fuelTypeName;
-    if (!acc[fuel]) {
-      acc[fuel] = { available: 0, dispensed: 0, digitalDispensed: 0 };
+  const filteredDispensed = dispensedData.filter(item => {
+    const fuelMatch = selectedFuelType === 'All' || item.fuelTypeName === selectedFuelType;
+    const stationMatch = selectedStation === 'All' || item.stationId === selectedStation;
+    return fuelMatch && stationMatch;
+  });
+
+  // Totals for key metrics (using all data, not filtered)
+  const totalAvailable = inventoryData.reduce((sum, item) => sum + item.currentStock, 0);
+  const totalDispensed = dispensedData.reduce((sum, item) => sum + item.dispensedLiters, 0);
+  const totalDigitalDispensed = totalDispensed; // all dispensed logs are digital reservations
+
+  // Totals by fuel type for charts
+  const totalsByFuelType = useMemo(() => {
+    const map = new Map<string, { available: number; dispensed: number }>();
+    for (const inv of inventoryData) {
+      const fuel = inv.fuelTypeName;
+      if (!map.has(fuel)) map.set(fuel, { available: 0, dispensed: 0 });
+      map.get(fuel)!.available += inv.currentStock;
     }
-    acc[fuel].available += item.totalAvailable;
-    acc[fuel].dispensed += item.totalDispensed;
-    acc[fuel].digitalDispensed += item.digitalDispensed;
-    return acc;
-  }, {} as Record<string, { available: number; dispensed: number; digitalDispensed: number }>);
+    for (const disp of dispensedData) {
+      const fuel = disp.fuelTypeName;
+      if (!map.has(fuel)) map.set(fuel, { available: 0, dispensed: 0 });
+      map.get(fuel)!.dispensed += disp.dispensedLiters;
+    }
+    return Array.from(map.entries()).map(([name, data]) => ({ name, ...data }));
+  }, [inventoryData, dispensedData]);
 
-  // Chart data for available fuel
-  const availableFuelChartData = Object.entries(totalsByFuelType).map(([fuel, data]) => ({
-    name: fuel,
-    available: data.available,
-  }));
+  const availableFuelChartData = totalsByFuelType.map(t => ({ name: t.name, available: t.available }));
+  const dispensedFuelChartData = totalsByFuelType.map(t => ({ name: t.name, digital: t.dispensed }));
 
-  // Chart data for digital dispensed
-  const dispensedFuelChartData = Object.entries(totalsByFuelType).map(([fuel, data]) => ({
-    name: fuel,
-    digital: data.digitalDispensed,
-  }));
+  // Station-wise data for selected fuel type
+  const stationWiseData = useMemo(() => {
+    if (selectedFuelType === 'All') return [];
+    const stationMap = new Map<string, { station: string; available: number; dispensed: number; digital: number }>();
+    for (const inv of filteredInventory) {
+      if (inv.fuelTypeName === selectedFuelType) {
+        stationMap.set(inv.stationId, {
+          station: inv.stationName.split(' ')[0],
+          available: inv.currentStock,
+          dispensed: 0,
+          digital: 0,
+        });
+      }
+    }
+    for (const disp of filteredDispensed) {
+      if (disp.fuelTypeName === selectedFuelType) {
+        const existing = stationMap.get(disp.stationId);
+        if (existing) {
+          existing.dispensed += disp.dispensedLiters;
+          existing.digital += disp.dispensedLiters;
+        } else {
+          stationMap.set(disp.stationId, {
+            station: disp.stationName.split(' ')[0],
+            available: 0,
+            dispensed: disp.dispensedLiters,
+            digital: disp.dispensedLiters,
+          });
+        }
+      }
+    }
+    return Array.from(stationMap.values());
+  }, [filteredInventory, filteredDispensed, selectedFuelType]);
 
-  // Station‑wise data (when a specific fuel type is selected)
-  const stationWiseData = filteredAnalytics.map(item => ({
-    station: item.stationName.split(' ')[0], // shortened name
-    available: item.totalAvailable,
-    dispensed: item.totalDispensed,
-    digital: item.digitalDispensed,
-  }));
-
-  // Global totals
-  const totalAvailable = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.available, 0);
-  const totalDispensed = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.dispensed, 0);
-  const totalDigitalDispensed = Object.values(totalsByFuelType).reduce((sum, d) => sum + d.digitalDispensed, 0);
-
-  // Helper: get base price for a fuel type name
+  // Revenue calculation
   const getFuelPrice = (fuelName: string): number => {
-    const ft = fuelTypes.find(f => f?.name === fuelName);
+    const ft = fuelTypes.find(f => f.name === fuelName);
     return ft?.base_price_per_liter || 0;
   };
 
-  const calculateRevenue = (fuelName: string, liters: number) => {
-    return getFuelPrice(fuelName) * liters;
-  };
-
-  const totalRevenue = Object.entries(totalsByFuelType).reduce((sum, [fuel, data]) => {
-    return sum + calculateRevenue(fuel, data.digitalDispensed);
+  const totalRevenue = totalsByFuelType.reduce((sum, t) => {
+    return sum + (getFuelPrice(t.name) * t.dispensed);
   }, 0);
 
   const handleExport = () => {
     const csvRows = [
-      ['Station', 'Fuel Type', 'Available (L)', 'Total Dispensed (L)', 'Digital Dispensed (L)', 'Digital %', 'Last Updated'],
-      ...filteredAnalytics.map(item => [
+      ['Station', 'Fuel Type', 'Available (L)', 'Dispensed (L) (Date Range)', 'Last Updated (Inventory)'],
+      ...filteredInventory.map(item => [
         item.stationName,
         item.fuelTypeName,
-        item.totalAvailable,
-        item.totalDispensed,
-        item.digitalDispensed,
-        ((item.digitalDispensed / (item.totalDispensed || 1)) * 100).toFixed(1) + '%',
+        item.currentStock,
+        filteredDispensed.find(d => d.stationId === item.stationId && d.fuelTypeName === item.fuelTypeName)?.dispensedLiters || 0,
         new Date(item.lastUpdated).toLocaleString(),
       ]),
     ];
@@ -209,13 +298,13 @@ export function SystemAnalytics() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fuel_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `fuel_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Analytics report exported');
   };
 
-  const uniqueFuelTypes = Array.from(new Set(analyticsData.map(a => a.fuelTypeName))).sort();
+  const uniqueFuelTypes = Array.from(new Set(inventoryData.map(i => i.fuelTypeName))).sort();
 
   if (loading) {
     return (
@@ -232,8 +321,8 @@ export function SystemAnalytics() {
     <div className="p-4 lg:p-8">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-gray-900 mb-1">System Analytics</h1>
-          <p className="text-gray-600">Comprehensive fuel availability and dispensing analytics</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">System Analytics</h1>
+          <p className="text-gray-600">Real‑time fuel availability and dispensing analytics</p>
         </div>
         <Button onClick={handleExport} className="gap-2 bg-purple-600 hover:bg-purple-700">
           <Download className="w-4 h-4" />
@@ -241,9 +330,9 @@ export function SystemAnalytics() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2 flex-1">
+      {/* Filters: Fuel Type, Station, Date Range */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-500" />
           <Select value={selectedFuelType} onValueChange={setSelectedFuelType}>
             <SelectTrigger className="flex-1">
@@ -257,7 +346,7 @@ export function SystemAnalytics() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-gray-500" />
           <Select value={selectedStation} onValueChange={setSelectedStation}>
             <SelectTrigger className="flex-1">
@@ -266,14 +355,27 @@ export function SystemAnalytics() {
             <SelectContent>
               <SelectItem value="All">All Stations</SelectItem>
               {stations.map(station => (
-                <SelectItem key={station.id} value={station.id}>{station?.name}</SelectItem>
+                <SelectItem key={station.id} value={station.id}>{station.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-500" />
+          <Select value={dateRange} onValueChange={(val: DateRange) => setDateRange(val)}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Select date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Key Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-3 mb-2">
@@ -300,6 +402,7 @@ export function SystemAnalytics() {
                 {totalDispensed.toLocaleString()}
                 <span className="text-sm text-gray-500"> L</span>
               </p>
+              <p className="text-xs text-gray-400">{dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'This week' : 'This month'}</p>
             </div>
           </div>
         </Card>
@@ -319,12 +422,12 @@ export function SystemAnalytics() {
         </Card>
       </div>
 
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Available Fuel Stock Chart */}
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-gray-900 mb-1">Available Fuel Stock</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Available Fuel Stock</h3>
               <p className="text-sm text-gray-500">Current inventory across all stations</p>
             </div>
             <Droplet className="w-5 h-5 text-blue-600" />
@@ -334,28 +437,25 @@ export function SystemAnalytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
               <YAxis stroke="#6b7280" fontSize={12} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-              />
+              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
               <Bar dataKey="available" fill="#10b981" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           <div className="mt-4 pt-4 border-t space-y-2">
-            {Object.entries(totalsByFuelType).map(([fuel, data]) => (
-              <div key={fuel} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{fuel}</span>
-                <span className="text-gray-900">{data.available.toLocaleString()} L</span>
+            {totalsByFuelType.map(t => (
+              <div key={t.name} className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">{t.name}</span>
+                <span className="text-gray-900">{t.available.toLocaleString()} L</span>
               </div>
             ))}
           </div>
         </Card>
 
-        {/* Dispensed Fuel Analysis (Digital only) */}
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-gray-900 mb-1">Dispensed Fuel (Digital)</h3>
-              <p className="text-sm text-gray-500">Fuel dispensed through reservations</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Dispensed Fuel (Digital)</h3>
+              <p className="text-sm text-gray-500">Fuel dispensed through reservations ({dateRange})</p>
             </div>
             <BarChart3 className="w-5 h-5 text-purple-600" />
           </div>
@@ -364,17 +464,15 @@ export function SystemAnalytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
               <YAxis stroke="#6b7280" fontSize={12} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-              />
+              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
               <Bar dataKey="digital" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Digital Dispensed" />
             </BarChart>
           </ResponsiveContainer>
           <div className="mt-4 pt-4 border-t space-y-2">
-            {Object.entries(totalsByFuelType).map(([fuel, data]) => (
-              <div key={fuel} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{fuel} (Digital)</span>
-                <span className="text-blue-600">{data.digitalDispensed.toLocaleString()} L</span>
+            {totalsByFuelType.map(t => (
+              <div key={t.name} className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">{t.name} (Digital)</span>
+                <span className="text-blue-600">{t.dispensed.toLocaleString()} L</span>
               </div>
             ))}
           </div>
@@ -385,28 +483,22 @@ export function SystemAnalytics() {
       <Card className="p-6 mb-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-gray-900 mb-1">Digital Revenue Summary</h3>
-            <p className="text-sm text-gray-500">Revenue from digital reservations</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Digital Revenue Summary</h3>
+            <p className="text-sm text-gray-500">Revenue from digital reservations ({dateRange})</p>
           </div>
-          <Calendar className="w-5 h-5 text-green-600" />
+          <Activity className="w-5 h-5 text-green-600" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(totalsByFuelType).map(([fuel, data]) => {
-            const price = getFuelPrice(fuel);
-            const revenue = calculateRevenue(fuel, data.digitalDispensed);
+          {totalsByFuelType.map(t => {
+            const price = getFuelPrice(t.name);
+            const revenue = price * t.dispensed;
             return (
-              <div key={fuel} className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                <p className="text-xs text-gray-600 mb-1">{fuel}</p>
+              <div key={t.name} className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                <p className="text-xs text-gray-600 mb-1">{t.name}</p>
                 <p className="text-2xl text-gray-900 mb-2">ETB {revenue.toLocaleString()}</p>
                 <div className="space-y-1 text-xs text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Volume:</span>
-                    <span>{data.digitalDispensed.toLocaleString()} L</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Rate:</span>
-                    <span>ETB {price}/L</span>
-                  </div>
+                  <div className="flex justify-between"><span>Volume:</span><span>{t.dispensed.toLocaleString()} L</span></div>
+                  <div className="flex justify-between"><span>Rate:</span><span>ETB {price}/L</span></div>
                 </div>
               </div>
             );
@@ -420,21 +512,19 @@ export function SystemAnalytics() {
         </div>
       </Card>
 
-      {/* Station-wise Breakdown (only when a specific fuel type is selected) */}
-      {selectedFuelType !== 'All' && selectedStation === 'All' && stationWiseData.length > 0 && (
+      {/* Station-wise Breakdown (when a specific fuel type is selected) */}
+      {selectedFuelType !== 'All' && stationWiseData.length > 0 && (
         <Card className="p-6 mb-6">
           <div className="mb-4">
-            <h3 className="text-gray-900 mb-1">Station-wise {selectedFuelType} Analysis</h3>
-            <p className="text-sm text-gray-500">Availability and dispensing by station</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Station-wise {selectedFuelType} Analysis</h3>
+            <p className="text-sm text-gray-500">Availability and dispensing by station ({dateRange})</p>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={stationWiseData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="station" stroke="#6b7280" fontSize={12} />
               <YAxis stroke="#6b7280" fontSize={12} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-              />
+              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
               <Legend />
               <Bar dataKey="available" fill="#10b981" radius={[8, 8, 0, 0]} name="Available" />
               <Bar dataKey="dispensed" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Total Dispensed" />
@@ -444,11 +534,11 @@ export function SystemAnalytics() {
         </Card>
       )}
 
-      {/* Detailed Analytics Table */}
+      {/* Detailed Table */}
       <Card className="p-6">
         <div className="mb-4">
-          <h3 className="text-gray-900 mb-1">Detailed Analytics Table</h3>
-          <p className="text-sm text-gray-500">Complete breakdown of fuel metrics</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Detailed Analytics Table</h3>
+          <p className="text-sm text-gray-500">Inventory and dispensing data (dispensed filtered by {dateRange})</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -457,17 +547,13 @@ export function SystemAnalytics() {
                 <th className="text-left py-3 px-4 text-sm text-gray-600">Station</th>
                 <th className="text-left py-3 px-4 text-sm text-gray-600">Fuel Type</th>
                 <th className="text-right py-3 px-4 text-sm text-gray-600">Available (L)</th>
-                <th className="text-right py-3 px-4 text-sm text-gray-600">Total Dispensed (L)</th>
-                <th className="text-right py-3 px-4 text-sm text-gray-600">Digital Dispensed (L)</th>
-                <th className="text-right py-3 px-4 text-sm text-gray-600">Digital %</th>
-                <th className="text-left py-3 px-4 text-sm text-gray-600">Last Updated</th>
-               </tr>
+                <th className="text-right py-3 px-4 text-sm text-gray-600">Dispensed (L)</th>
+                <th className="text-left py-3 px-4 text-sm text-gray-600">Last Updated (Inventory)</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredAnalytics.map((item, idx) => {
-                const digitalPercentage = item.totalDispensed > 0
-                  ? ((item.digitalDispensed / item.totalDispensed) * 100).toFixed(1)
-                  : '0';
+              {filteredInventory.map((item, idx) => {
+                const dispensed = filteredDispensed.find(d => d.stationId === item.stationId && d.fuelTypeName === item.fuelTypeName)?.dispensedLiters || 0;
                 return (
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm text-gray-900">{item.stationName}</td>
@@ -480,16 +566,14 @@ export function SystemAnalytics() {
                         {item.fuelTypeName}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-900">{item.totalAvailable.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-900">{item.totalDispensed.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-sm text-right text-blue-600">{item.digitalDispensed.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-900">{digitalPercentage}%</td>
+                    <td className="py-3 px-4 text-sm text-right text-gray-900">{item.currentStock.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-sm text-right text-blue-600">{dispensed.toLocaleString()}</td>
                     <td className="py-3 px-4 text-sm text-gray-500">{new Date(item.lastUpdated).toLocaleString()}</td>
                   </tr>
                 );
               })}
-              {filteredAnalytics.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-500">No data available</td></tr>
+              {filteredInventory.length === 0 && (
+                <tr><td colSpan={5} className="py-8 text-center text-gray-500">No data available</td></tr>
               )}
             </tbody>
           </table>
